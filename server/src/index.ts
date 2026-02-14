@@ -17,7 +17,7 @@ import { registerSyncTools } from "./daemon/tools/sync.js";
 
 const server = new McpServer({
   name: "interkasten",
-  version: "0.1.0",
+  version: "0.2.0",
 });
 
 async function main() {

@@ -29,7 +29,7 @@ export interface DaemonContext {
  */
 export function createDaemonContext(config: Config, dbPath: string): DaemonContext {
   return {
-    version: "0.1.0",
+    version: "0.2.0",
     config,
     db: null,
     sqlite: null,
