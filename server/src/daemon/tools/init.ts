@@ -12,6 +12,8 @@ import {
   getKeyDocDbProperties,
   updateProjectKeyDocs,
 } from "../../sync/key-docs.js";
+import { triageProject } from "../../sync/triage.js";
+import { updateDocTier } from "../../store/entities.js";
 
 interface InitManifest {
   created_at: string;
@@ -149,6 +151,15 @@ export function registerInitTool(server: McpServer, ctx: DaemonContext): void {
                 "Last Sync": { date: {} },
                 "Health Score": { number: { format: "percent" } },
                 "Tech Stack": { rich_text: {} },
+                "Doc Tier": {
+                  select: {
+                    options: [
+                      { name: "Product", color: "green" },
+                      { name: "Tool", color: "blue" },
+                      { name: "Inactive", color: "gray" },
+                    ],
+                  },
+                },
                 ...getKeyDocDbProperties(),
               },
             });
@@ -297,6 +308,26 @@ export function registerInitTool(server: McpServer, ctx: DaemonContext): void {
                 }
               } catch (err) {
                 output.push(`    key docs error: ${(err as Error).message}`);
+              }
+
+              // Triage: classify project and set doc tier
+              try {
+                const entity = registerProject(ctx.db, projPath, page.id);
+                const triage = triageProject(projPath);
+                updateDocTier(ctx.db, entity.id, triage.tier);
+
+                // Update Notion with tier
+                await notion.call(async () => {
+                  return notion.raw.pages.update({
+                    page_id: page.id,
+                    properties: {
+                      "Doc Tier": { select: { name: triage.tier } },
+                    },
+                  });
+                });
+                output.push(`    tier: ${triage.tier} (${triage.requiredDocs.length} docs required)`);
+              } catch (err) {
+                output.push(`    triage error: ${(err as Error).message}`);
               }
             } catch (err) {
               output.push(`  ! ${projName}: ${(err as Error).message}`);

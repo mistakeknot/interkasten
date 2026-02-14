@@ -159,6 +159,20 @@ export function gcOrphanedBaseContent(db: DB): number {
 }
 
 /**
+ * Update the doc_tier for an entity (project-level triage classification).
+ */
+export function updateDocTier(
+  db: DB,
+  id: number,
+  docTier: string | null
+): void {
+  db.update(entityMap)
+    .set({ docTier })
+    .where(eq(entityMap.id, id))
+    .run();
+}
+
+/**
  * Update entity hashes and sync timestamp after a successful sync.
  */
 export function updateEntityAfterSync(

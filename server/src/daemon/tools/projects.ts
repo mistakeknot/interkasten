@@ -19,8 +19,10 @@ import {
   enrichWithNotionIds,
   buildKeyDocPageProperties,
   updateProjectKeyDocs,
+  categorizeKeyDocs,
   type KeyDocResult,
 } from "../../sync/key-docs.js";
+import type { DocTier } from "../../sync/triage.js";
 
 export function registerProjectTools(server: McpServer, ctx: DaemonContext): void {
   server.tool(
@@ -40,8 +42,8 @@ export function registerProjectTools(server: McpServer, ctx: DaemonContext): voi
       const result = projects.map((p) => {
         const keyDocs = findKeyDocs(p.localPath);
         const enriched = enrichWithNotionIds(db, p.localPath, keyDocs);
-        const missing = enriched.filter((d) => !d.path).map((d) => d.type);
-        const present = enriched.filter((d) => d.path).map((d) => d.type);
+        const docTier = (p.docTier as DocTier) ?? null;
+        const { requiredMissing, requiredPresent, optional } = categorizeKeyDocs(enriched, docTier);
 
         return {
           name: basename(p.localPath),
@@ -49,7 +51,12 @@ export function registerProjectTools(server: McpServer, ctx: DaemonContext): voi
           notion_id: p.notionId,
           last_sync: p.lastSyncTs,
           notion_url: `https://notion.so/${p.notionId.replace(/-/g, "")}`,
-          key_docs: { present, missing },
+          doc_tier: docTier,
+          key_docs: {
+            required_present: requiredPresent.map((d) => d.type),
+            required_missing: requiredMissing.map((d) => d.type),
+            optional: optional.map((d) => d.type),
+          },
         };
       });
 
@@ -107,6 +114,8 @@ export function registerProjectTools(server: McpServer, ctx: DaemonContext): voi
       // Key doc status
       const keyDocs = findKeyDocs(entity.localPath);
       const enriched = enrichWithNotionIds(ctx.db, entity.localPath, keyDocs);
+      const docTier = (entity.docTier as DocTier) ?? null;
+      const { requiredMissing, requiredPresent, optional } = categorizeKeyDocs(enriched, docTier);
 
       const result = {
         name: basename(entity.localPath),
@@ -114,14 +123,23 @@ export function registerProjectTools(server: McpServer, ctx: DaemonContext): voi
         notion_id: entity.notionId,
         notion_url: `https://notion.so/${entity.notionId.replace(/-/g, "")}`,
         last_sync: entity.lastSyncTs,
+        doc_tier: docTier,
         key_docs: enriched.map((kd) => ({
           type: kd.type,
           exists: kd.path !== null,
+          required: docTier
+            ? requiredPresent.some((r) => r.type === kd.type) ||
+              requiredMissing.some((r) => r.type === kd.type)
+            : null,
           path: kd.path,
           notion_url: kd.notionId
             ? `https://notion.so/${kd.notionId.replace(/-/g, "")}`
             : null,
         })),
+        doc_gaps: {
+          required_missing: requiredMissing.map((d) => d.type),
+          required_present: requiredPresent.map((d) => d.type),
+        },
         docs: docs.map((d) => ({
           name: basename(d.localPath, ".md"),
           path: d.localPath,

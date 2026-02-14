@@ -85,6 +85,14 @@ export function openDatabase(dbPath?: string): { db: DB; sqlite: Database.Databa
   // Run schema migrations
   sqlite.exec(SCHEMA_SQL);
 
+  // Conditional column migrations (ALTER TABLE doesn't support IF NOT EXISTS)
+  const entityMapCols = sqlite.pragma("table_info(entity_map)") as Array<{ name: string }>;
+  const colNames = new Set(entityMapCols.map((c) => c.name));
+
+  if (!colNames.has("doc_tier")) {
+    sqlite.exec("ALTER TABLE entity_map ADD COLUMN doc_tier TEXT");
+  }
+
   const db = drizzle(sqlite, { schema });
 
   return { db, sqlite };

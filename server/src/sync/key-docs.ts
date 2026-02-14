@@ -4,6 +4,7 @@ import { readdirSync } from "fs";
 import type { DB } from "../store/db.js";
 import { listEntities } from "../store/entities.js";
 import type { NotionClient } from "./notion-client.js";
+import { TIER_DOC_REQUIREMENTS, type DocTier } from "./triage.js";
 
 /**
  * The 5 key documents tracked per project as Notion database columns.
@@ -152,4 +153,46 @@ export async function updateProjectKeyDocs(
     },
     { pageId: projectNotionId }
   );
+}
+
+/**
+ * Get the list of required key doc types for a given tier.
+ * Returns the subset of KEY_DOC_TYPES that the tier demands.
+ */
+export function getRequiredDocsForTier(tier: DocTier): readonly string[] {
+  return TIER_DOC_REQUIREMENTS[tier] ?? [];
+}
+
+/**
+ * Categorize key docs as required-missing, required-present, or optional
+ * based on a project's doc tier.
+ */
+export function categorizeKeyDocs(
+  keyDocs: KeyDocResult[],
+  docTier: DocTier | null
+): {
+  requiredMissing: KeyDocResult[];
+  requiredPresent: KeyDocResult[];
+  optional: KeyDocResult[];
+} {
+  const tier = docTier ?? "Tool"; // default to Tool if no tier set
+  const required = new Set(getRequiredDocsForTier(tier));
+
+  const requiredMissing: KeyDocResult[] = [];
+  const requiredPresent: KeyDocResult[] = [];
+  const optional: KeyDocResult[] = [];
+
+  for (const kd of keyDocs) {
+    if (required.has(kd.type)) {
+      if (kd.path) {
+        requiredPresent.push(kd);
+      } else {
+        requiredMissing.push(kd);
+      }
+    } else {
+      optional.push(kd);
+    }
+  }
+
+  return { requiredMissing, requiredPresent, optional };
 }

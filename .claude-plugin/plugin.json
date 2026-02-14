@@ -1,17 +1,42 @@
 {
   "name": "interkasten",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Living bridge between your projects folder and Notion — bidirectional sync with adaptive AI documentation and pagent workflow automation",
-  "author": { "name": "mistakeknot", "email": "mistakeknot@vibeguider.org" },
+  "author": {
+    "name": "mistakeknot",
+    "email": "mistakeknot@vibeguider.org"
+  },
   "repository": "https://github.com/mistakeknot/interkasten",
   "license": "MIT",
-  "keywords": ["notion", "sync", "documentation", "pagent", "workflows", "mcp"],
+  "keywords": [
+    "notion",
+    "sync",
+    "documentation",
+    "pagent",
+    "workflows",
+    "mcp"
+  ],
   "mcpServers": {
     "interkasten": {
       "type": "stdio",
       "command": "bash",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/start-mcp.sh"],
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/scripts/start-mcp.sh"
+      ],
       "env": {}
+    }
+  },
+  "skills": {
+    "onboard": {
+      "description": "Triage projects, generate missing docs per tier, establish drift baselines, sync to Notion",
+      "path": "skills/onboard/SKILL.md",
+      "user_invocable": true
+    }
+  },
+  "commands": {
+    "onboard": {
+      "description": "Triage all projects, fill doc gaps, establish drift baselines, sync",
+      "path": "commands/onboard.md"
     }
   },
   "hooks": "hooks/hooks.json"
