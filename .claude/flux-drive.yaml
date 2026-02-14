@@ -1,0 +1,12 @@
+domains:
+  - name: claude-code-plugin
+    confidence: 0.8
+    primary: true
+    source: llm-inferred
+  - name: library-sdk
+    confidence: 0.6
+    source: llm-inferred
+  - name: data-pipeline
+    confidence: 0.5
+    source: llm-inferred
+scanned_at: '2026-02-14'
