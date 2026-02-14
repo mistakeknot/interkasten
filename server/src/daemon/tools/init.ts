@@ -6,6 +6,12 @@ import type { DaemonContext } from "../context.js";
 import { ensureConfigFile, loadConfig, getInterkastenDir } from "../../config/loader.js";
 import { NotionClient } from "../../sync/notion-client.js";
 import { registerProject, registerDoc } from "../../sync/entity-map.js";
+import {
+  findKeyDocs,
+  enrichWithNotionIds,
+  getKeyDocDbProperties,
+  updateProjectKeyDocs,
+} from "../../sync/key-docs.js";
 
 interface InitManifest {
   created_at: string;
@@ -143,6 +149,7 @@ export function registerInitTool(server: McpServer, ctx: DaemonContext): void {
                 "Last Sync": { date: {} },
                 "Health Score": { number: { format: "percent" } },
                 "Tech Stack": { rich_text: {} },
+                ...getKeyDocDbProperties(),
               },
             });
           });
@@ -277,6 +284,19 @@ export function registerInitTool(server: McpServer, ctx: DaemonContext): void {
                   });
                 });
                 registerDoc(ctx.db, mdFile, docPage.id, "T1");
+              }
+
+              // Set key doc columns on the project page
+              try {
+                const keyDocs = findKeyDocs(projPath);
+                const enriched = enrichWithNotionIds(ctx.db, projPath, keyDocs);
+                await updateProjectKeyDocs(notion, page.id, enriched);
+                const missing = enriched.filter((d) => !d.path).map((d) => d.type);
+                if (missing.length > 0) {
+                  output.push(`    missing: ${missing.join(", ")}`);
+                }
+              } catch (err) {
+                output.push(`    key docs error: ${(err as Error).message}`);
               }
             } catch (err) {
               output.push(`  ! ${projName}: ${(err as Error).message}`);

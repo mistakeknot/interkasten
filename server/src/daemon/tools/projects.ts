@@ -14,6 +14,13 @@ import {
   listEntities,
 } from "../../store/entities.js";
 import { appendSyncLog } from "../../store/sync-log.js";
+import {
+  findKeyDocs,
+  enrichWithNotionIds,
+  buildKeyDocPageProperties,
+  updateProjectKeyDocs,
+  type KeyDocResult,
+} from "../../sync/key-docs.js";
 
 export function registerProjectTools(server: McpServer, ctx: DaemonContext): void {
   server.tool(
@@ -28,14 +35,23 @@ export function registerProjectTools(server: McpServer, ctx: DaemonContext): voi
         };
       }
 
-      const projects = listProjects(ctx.db);
-      const result = projects.map((p) => ({
-        name: basename(p.localPath),
-        local_path: p.localPath,
-        notion_id: p.notionId,
-        last_sync: p.lastSyncTs,
-        notion_url: `https://notion.so/${p.notionId.replace(/-/g, "")}`,
-      }));
+      const db = ctx.db;
+      const projects = listProjects(db);
+      const result = projects.map((p) => {
+        const keyDocs = findKeyDocs(p.localPath);
+        const enriched = enrichWithNotionIds(db, p.localPath, keyDocs);
+        const missing = enriched.filter((d) => !d.path).map((d) => d.type);
+        const present = enriched.filter((d) => d.path).map((d) => d.type);
+
+        return {
+          name: basename(p.localPath),
+          local_path: p.localPath,
+          notion_id: p.notionId,
+          last_sync: p.lastSyncTs,
+          notion_url: `https://notion.so/${p.notionId.replace(/-/g, "")}`,
+          key_docs: { present, missing },
+        };
+      });
 
       return {
         content: [
@@ -88,12 +104,24 @@ export function registerProjectTools(server: McpServer, ctx: DaemonContext): voi
           e.localPath.startsWith(entity!.localPath)
       );
 
+      // Key doc status
+      const keyDocs = findKeyDocs(entity.localPath);
+      const enriched = enrichWithNotionIds(ctx.db, entity.localPath, keyDocs);
+
       const result = {
         name: basename(entity.localPath),
         local_path: entity.localPath,
         notion_id: entity.notionId,
         notion_url: `https://notion.so/${entity.notionId.replace(/-/g, "")}`,
         last_sync: entity.lastSyncTs,
+        key_docs: enriched.map((kd) => ({
+          type: kd.type,
+          exists: kd.path !== null,
+          path: kd.path,
+          notion_url: kd.notionId
+            ? `https://notion.so/${kd.notionId.replace(/-/g, "")}`
+            : null,
+        })),
         docs: docs.map((d) => ({
           name: basename(d.localPath, ".md"),
           path: d.localPath,
@@ -180,6 +208,17 @@ export function registerProjectTools(server: McpServer, ctx: DaemonContext): voi
 
       registerProject(ctx.db, path, page.id);
 
+      // Set key doc columns
+      const keyDocs = findKeyDocs(path);
+      const enriched = enrichWithNotionIds(ctx.db, path, keyDocs);
+      try {
+        await updateProjectKeyDocs(ctx.notion, page.id, enriched);
+      } catch {
+        // Non-fatal — columns may not exist yet on older databases
+      }
+
+      const missing = enriched.filter((d) => !d.path).map((d) => d.type);
+
       appendSyncLog(ctx.db, {
         operation: "push",
         direction: "local_to_notion",
@@ -190,7 +229,11 @@ export function registerProjectTools(server: McpServer, ctx: DaemonContext): voi
         content: [
           {
             type: "text" as const,
-            text: `Registered project: ${projName}\nNotion page: https://notion.so/${page.id.replace(/-/g, "")}`,
+            text: [
+              `Registered project: ${projName}`,
+              `Notion page: https://notion.so/${page.id.replace(/-/g, "")}`,
+              missing.length > 0 ? `Missing key docs: ${missing.join(", ")}` : "All key docs present",
+            ].join("\n"),
           },
         ],
       };
@@ -259,6 +302,105 @@ export function registerProjectTools(server: McpServer, ctx: DaemonContext): voi
             ].join("\n"),
           },
         ],
+      };
+    }
+  );
+
+  server.tool(
+    "interkasten_refresh_key_docs",
+    "Scan all projects (or one) for key docs (Vision, PRD, Roadmap, AGENTS.md, CLAUDE.md) and update their Notion database columns",
+    {
+      project: z
+        .string()
+        .optional()
+        .describe("Project name or path (omit to refresh all projects)"),
+      add_columns: z
+        .boolean()
+        .optional()
+        .describe("Add key doc columns to the Projects database if missing (default: false)"),
+    },
+    async ({ project, add_columns }) => {
+      if (!ctx.db || !ctx.notion) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: "Database or Notion client not connected. Run interkasten_init first.",
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      const output: string[] = [];
+
+      // Optionally add columns to the database
+      if (add_columns) {
+        const projectsDbId = ctx.config.notion.databases.projects;
+        if (projectsDbId) {
+          try {
+            const { getKeyDocDbProperties } = await import("../../sync/key-docs.js");
+            await ctx.notion.call(async () => {
+              return ctx.notion!.raw.databases.update({
+                database_id: projectsDbId,
+                properties: getKeyDocDbProperties() as any,
+              });
+            });
+            output.push("Added key doc columns to Projects database.");
+          } catch (err) {
+            output.push(`Failed to add columns: ${(err as Error).message}`);
+          }
+        }
+      }
+
+      // Get projects to refresh
+      const refreshDb = ctx.db;
+      let projects = listProjects(refreshDb);
+      if (project) {
+        const match = projects.find(
+          (p) => basename(p.localPath) === project || p.localPath === project
+        );
+        if (!match) {
+          return {
+            content: [
+              { type: "text" as const, text: `Project not found: ${project}` },
+            ],
+            isError: true,
+          };
+        }
+        projects = [match];
+      }
+
+      output.push(`Refreshing key docs for ${projects.length} project(s)...`);
+
+      let updated = 0;
+      let errors = 0;
+      for (const p of projects) {
+        try {
+          const keyDocs = findKeyDocs(p.localPath);
+          const enriched = enrichWithNotionIds(refreshDb, p.localPath, keyDocs);
+          await updateProjectKeyDocs(ctx.notion, p.notionId, enriched);
+          updated++;
+
+          const missing = enriched.filter((d) => !d.path).map((d) => d.type);
+          const present = enriched.filter((d) => d.path).map((d) => d.type);
+          const synced = enriched.filter((d) => d.notionId).map((d) => d.type);
+
+          output.push(
+            `  ${basename(p.localPath)}: ${present.length}/5 present` +
+              (missing.length > 0 ? ` (missing: ${missing.join(", ")})` : "") +
+              (synced.length > 0 ? ` [${synced.length} linked]` : "")
+          );
+        } catch (err) {
+          errors++;
+          output.push(`  ${basename(p.localPath)}: ERROR ${(err as Error).message}`);
+        }
+      }
+
+      output.push(`\nDone: ${updated} updated, ${errors} errors.`);
+
+      return {
+        content: [{ type: "text" as const, text: output.join("\n") }],
       };
     }
   );
