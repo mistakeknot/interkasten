@@ -3,8 +3,23 @@ import { z } from "zod";
 // Project detection configuration
 export const ProjectDetectionSchema = z.object({
   markers: z.array(z.string()).default([".git", ".beads"]),
-  exclude: z.array(z.string()).default(["node_modules", ".cache", "vendor"]),
-  max_depth: z.number().int().min(1).max(10).default(2),
+  exclude: z
+    .array(z.string())
+    .default(["node_modules", ".cache", "vendor", "dist", "build", ".next", "venv", ".venv"]),
+  max_depth: z.number().int().min(1).max(10).default(5),
+  hierarchy_marker: z.string().default(".beads"), // which marker defines parent-child relationships
+});
+
+// Layout override for manual hierarchy adjustments
+const LayoutOverrideSchema = z.object({
+  path: z.string(),
+  parent: z.string().nullable().optional(), // force parent (null = top-level)
+  skip: z.boolean().optional(), // exclude from discovery
+});
+
+export const LayoutSchema = z.object({
+  resolve_symlinks: z.boolean().default(true),
+  overrides: z.array(LayoutOverrideSchema).default([]),
 });
 
 // Notion connection configuration
@@ -126,6 +141,7 @@ export const BeadsSchema = z.object({
 export const ConfigSchema = z.object({
   projects_dir: z.string().default("~/projects"),
   project_detection: ProjectDetectionSchema.default({}),
+  layout: LayoutSchema.default({}),
   notion: NotionSchema.default({}),
   sync: SyncSchema.default({}),
   watcher: WatcherSchema.default({}),

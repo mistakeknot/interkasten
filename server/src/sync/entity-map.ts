@@ -1,4 +1,5 @@
 import { resolve, relative, basename, dirname } from "path";
+import { eq, and, isNull } from "drizzle-orm";
 import { type DB } from "../store/db.js";
 import {
   upsertEntity,
@@ -6,7 +7,7 @@ import {
   getEntityByNotionId,
   listEntities,
 } from "../store/entities.js";
-import type { EntityMap } from "../store/schema.js";
+import { entityMap, type EntityMap } from "../store/schema.js";
 
 export type EntityType = "project" | "doc" | "ref" | "issues";
 export type Tier = "T1" | "T2";
@@ -17,9 +18,11 @@ export type Tier = "T1" | "T2";
 export function registerProject(
   db: DB,
   localPath: string,
-  notionId: string
+  notionId: string,
+  parentId?: number | null,
+  tags?: string[]
 ): EntityMap {
-  return upsertEntity(db, {
+  const entity = upsertEntity(db, {
     localPath,
     notionId,
     entityType: "project",
@@ -30,6 +33,22 @@ export function registerProject(
     baseContentId: null,
     lastSyncTs: new Date().toISOString(),
   });
+
+  // Set parent and tags if provided (upsertEntity doesn't handle these)
+  if (parentId !== undefined || tags !== undefined) {
+    const updates: Record<string, unknown> = {};
+    if (parentId !== undefined) updates.parentId = parentId;
+    if (tags !== undefined) updates.tags = JSON.stringify(tags);
+
+    db.update(entityMap)
+      .set(updates)
+      .where(eq(entityMap.id, entity.id))
+      .run();
+
+    return db.select().from(entityMap).where(eq(entityMap.id, entity.id)).get()!;
+  }
+
+  return entity;
 }
 
 /**
@@ -111,4 +130,157 @@ export function computeTier(filePath: string): Tier {
 
   // Everything else is T2 (linked reference)
   return "T2";
+}
+
+// --- Hierarchy operations ---
+
+/**
+ * Get direct children of a project (one level deep).
+ */
+export function getProjectChildren(db: DB, parentId: number): EntityMap[] {
+  return db
+    .select()
+    .from(entityMap)
+    .where(
+      and(
+        eq(entityMap.parentId, parentId),
+        eq(entityMap.entityType, "project"),
+        eq(entityMap.deleted, false)
+      )
+    )
+    .all();
+}
+
+/**
+ * Get the parent project of a project, or null if top-level.
+ */
+export function getProjectParent(db: DB, projectId: number): EntityMap | null {
+  const project = db
+    .select()
+    .from(entityMap)
+    .where(eq(entityMap.id, projectId))
+    .get();
+
+  if (!project?.parentId) return null;
+
+  return (
+    db
+      .select()
+      .from(entityMap)
+      .where(and(eq(entityMap.id, project.parentId), eq(entityMap.deleted, false)))
+      .get() ?? null
+  );
+}
+
+/**
+ * Get the full ancestor chain from a project up to the root.
+ * Returns [immediate_parent, grandparent, ..., root] (closest first).
+ */
+export function getProjectAncestors(db: DB, projectId: number): EntityMap[] {
+  const ancestors: EntityMap[] = [];
+  let currentId: number | null = projectId;
+
+  while (currentId !== null) {
+    const entity = db
+      .select()
+      .from(entityMap)
+      .where(eq(entityMap.id, currentId))
+      .get();
+
+    if (!entity?.parentId) break;
+
+    const parent = db
+      .select()
+      .from(entityMap)
+      .where(and(eq(entityMap.id, entity.parentId), eq(entityMap.deleted, false)))
+      .get();
+
+    if (!parent) break;
+    ancestors.push(parent);
+    currentId = parent.id;
+  }
+
+  return ancestors;
+}
+
+/**
+ * Set or change a project's parent.
+ * Pass null to make it top-level.
+ */
+export function setProjectParent(
+  db: DB,
+  projectId: number,
+  parentId: number | null
+): void {
+  db.update(entityMap)
+    .set({ parentId })
+    .where(eq(entityMap.id, projectId))
+    .run();
+}
+
+/**
+ * Replace all tags on a project.
+ */
+export function setProjectTags(
+  db: DB,
+  projectId: number,
+  tags: string[]
+): void {
+  db.update(entityMap)
+    .set({ tags: JSON.stringify(tags) })
+    .where(eq(entityMap.id, projectId))
+    .run();
+}
+
+/**
+ * Get parsed tags for a project.
+ */
+export function getProjectTags(db: DB, projectId: number): string[] {
+  const entity = db
+    .select({ tags: entityMap.tags })
+    .from(entityMap)
+    .where(eq(entityMap.id, projectId))
+    .get();
+
+  if (!entity?.tags) return [];
+  try {
+    return JSON.parse(entity.tags);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Get docs that belong directly to a project (not to its subprojects).
+ * Uses parent_id FK — does NOT use path prefix matching.
+ */
+export function getDocsForProject(db: DB, projectId: number): EntityMap[] {
+  return db
+    .select()
+    .from(entityMap)
+    .where(
+      and(
+        eq(entityMap.parentId, projectId),
+        eq(entityMap.entityType, "doc"),
+        eq(entityMap.deleted, false)
+      )
+    )
+    .all();
+}
+
+/**
+ * List top-level projects (no parent).
+ */
+export function listTopLevelProjects(db: DB): EntityMap[] {
+  return db
+    .select()
+    .from(entityMap)
+    .where(
+      and(
+        eq(entityMap.entityType, "project"),
+        isNull(entityMap.parentId),
+        eq(entityMap.deleted, false)
+      )
+    )
+    .all();
 }

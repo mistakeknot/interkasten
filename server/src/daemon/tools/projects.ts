@@ -8,6 +8,10 @@ import {
   lookupByPath,
   registerProject,
   registerDoc,
+  getProjectChildren,
+  getProjectParent,
+  getProjectTags,
+  getDocsForProject,
 } from "../../sync/entity-map.js";
 import {
   softDeleteEntity,
@@ -41,9 +45,14 @@ export function registerProjectTools(server: McpServer, ctx: DaemonContext): voi
       const projects = listProjects(db);
       const result = projects.map((p) => {
         const keyDocs = findKeyDocs(p.localPath);
-        const enriched = enrichWithNotionIds(db, p.localPath, keyDocs);
+        const enriched = enrichWithNotionIds(db, p.id, keyDocs);
         const docTier = (p.docTier as DocTier) ?? null;
         const { requiredMissing, requiredPresent, optional } = categorizeKeyDocs(enriched, docTier);
+
+        // Hierarchy info
+        const parent = p.parentId ? getProjectParent(db, p.id) : null;
+        const children = getProjectChildren(db, p.id);
+        const tags = getProjectTags(db, p.id);
 
         return {
           name: basename(p.localPath),
@@ -52,6 +61,9 @@ export function registerProjectTools(server: McpServer, ctx: DaemonContext): voi
           last_sync: p.lastSyncTs,
           notion_url: `https://notion.so/${p.notionId.replace(/-/g, "")}`,
           doc_tier: docTier,
+          parent: parent ? basename(parent.localPath) : null,
+          children: children.map((c) => basename(c.localPath)),
+          tags,
           key_docs: {
             required_present: requiredPresent.map((d) => d.type),
             required_missing: requiredMissing.map((d) => d.type),
@@ -103,19 +115,19 @@ export function registerProjectTools(server: McpServer, ctx: DaemonContext): voi
         };
       }
 
-      // Get associated docs
-      const allEntities = listEntities(ctx.db);
-      const docs = allEntities.filter(
-        (e) =>
-          e.entityType === "doc" &&
-          e.localPath.startsWith(entity!.localPath)
-      );
+      // Get docs belonging to this project (using parent_id, not path prefix)
+      const docs = getDocsForProject(ctx.db, entity.id);
 
       // Key doc status
       const keyDocs = findKeyDocs(entity.localPath);
-      const enriched = enrichWithNotionIds(ctx.db, entity.localPath, keyDocs);
+      const enriched = enrichWithNotionIds(ctx.db, entity.id, keyDocs);
       const docTier = (entity.docTier as DocTier) ?? null;
       const { requiredMissing, requiredPresent, optional } = categorizeKeyDocs(enriched, docTier);
+
+      // Hierarchy info
+      const parent = entity.parentId ? getProjectParent(ctx.db, entity.id) : null;
+      const children = getProjectChildren(ctx.db, entity.id);
+      const tags = getProjectTags(ctx.db, entity.id);
 
       const result = {
         name: basename(entity.localPath),
@@ -124,6 +136,9 @@ export function registerProjectTools(server: McpServer, ctx: DaemonContext): voi
         notion_url: `https://notion.so/${entity.notionId.replace(/-/g, "")}`,
         last_sync: entity.lastSyncTs,
         doc_tier: docTier,
+        parent: parent ? { name: basename(parent.localPath), notion_url: `https://notion.so/${parent.notionId.replace(/-/g, "")}` } : null,
+        children: children.map((c) => ({ name: basename(c.localPath), notion_url: `https://notion.so/${c.notionId.replace(/-/g, "")}` })),
+        tags,
         key_docs: enriched.map((kd) => ({
           type: kd.type,
           exists: kd.path !== null,
@@ -158,11 +173,19 @@ export function registerProjectTools(server: McpServer, ctx: DaemonContext): voi
 
   server.tool(
     "interkasten_register_project",
-    "Manually register a directory as a project for Notion sync",
+    "Register a directory as a project for Notion sync. Agent specifies properties.",
     {
       path: z.string().describe("Absolute path to the project directory"),
+      parent_project: z
+        .string()
+        .optional()
+        .describe("Parent project name or path (optional)"),
+      properties: z
+        .record(z.unknown())
+        .optional()
+        .describe("Notion page properties to set (Status, Tags, Doc Tier, etc.)"),
     },
-    async ({ path }) => {
+    async ({ path, parent_project, properties }) => {
       if (!ctx.db || !ctx.notion) {
         return {
           content: [
@@ -212,23 +235,39 @@ export function registerProjectTools(server: McpServer, ctx: DaemonContext): voi
 
       const projName = basename(path);
 
+      // Resolve parent project if specified
+      let parentId: number | null = null;
+      if (parent_project) {
+        let parentEntity = lookupByPath(ctx.db, parent_project);
+        if (!parentEntity) {
+          const projects = listProjects(ctx.db);
+          parentEntity = projects.find((p) => basename(p.localPath) === parent_project);
+        }
+        if (parentEntity) {
+          parentId = parentEntity.id;
+        }
+      }
+
+      // Build Notion properties — agent provides, we merge with minimum required
+      const notionProps: Record<string, unknown> = {
+        Name: { title: [{ text: { content: projName } }] },
+        "Last Sync": { date: { start: new Date().toISOString() } },
+        ...properties,
+      };
+
       // Create project page in Notion
       const page = await ctx.notion.call(async () => {
         return ctx.notion!.raw.pages.create({
           parent: { database_id: projectsDbId },
-          properties: {
-            Name: { title: [{ text: { content: projName } }] },
-            Status: { select: { name: "Active" } },
-            "Last Sync": { date: { start: new Date().toISOString() } },
-          },
+          properties: notionProps as any,
         });
       });
 
-      registerProject(ctx.db, path, page.id);
+      const projectEntity = registerProject(ctx.db, path, page.id, parentId);
 
       // Set key doc columns
       const keyDocs = findKeyDocs(path);
-      const enriched = enrichWithNotionIds(ctx.db, path, keyDocs);
+      const enriched = enrichWithNotionIds(ctx.db, projectEntity.id, keyDocs);
       try {
         await updateProjectKeyDocs(ctx.notion, page.id, enriched);
       } catch {
@@ -287,11 +326,9 @@ export function registerProjectTools(server: McpServer, ctx: DaemonContext): voi
         };
       }
 
-      // Soft-delete project and all its docs
-      const allEntities = listEntities(ctx.db);
-      const toDelete = allEntities.filter(
-        (e) => e.localPath.startsWith(entity!.localPath)
-      );
+      // Soft-delete project and its direct docs (agent handles children)
+      const directDocs = getDocsForProject(ctx.db, entity.id);
+      const toDelete = [entity, ...directDocs];
 
       const orphanedPages: string[] = [];
       for (const e of toDelete) {
@@ -396,7 +433,7 @@ export function registerProjectTools(server: McpServer, ctx: DaemonContext): voi
       for (const p of projects) {
         try {
           const keyDocs = findKeyDocs(p.localPath);
-          const enriched = enrichWithNotionIds(refreshDb, p.localPath, keyDocs);
+          const enriched = enrichWithNotionIds(refreshDb, p.id, keyDocs);
           await updateProjectKeyDocs(ctx.notion, p.notionId, enriched);
           updated++;
 

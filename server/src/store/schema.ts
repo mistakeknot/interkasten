@@ -12,6 +12,8 @@ export const entityMap = sqliteTable("entity_map", {
   entityType: text("entity_type").notNull(), // 'project' | 'doc' | 'ref' | 'issues'
   tier: text("tier"), // 'T1' | 'T2' | null
   docTier: text("doc_tier"), // 'Product' | 'Tool' | 'Inactive' | null (project-level triage)
+  parentId: integer("parent_id"), // self-referential FK for project hierarchy (null = top-level)
+  tags: text("tags").default("[]"), // JSON array of tag strings
   lastLocalHash: text("last_local_hash"),
   lastNotionHash: text("last_notion_hash"),
   lastNotionVer: text("last_notion_ver"), // Notion last_edited_time for fast-path

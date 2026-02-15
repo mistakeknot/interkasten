@@ -15,6 +15,8 @@ import { registerInitTool } from "./daemon/tools/init.js";
 import { registerProjectTools } from "./daemon/tools/projects.js";
 import { registerSyncTools } from "./daemon/tools/sync.js";
 import { registerTriageTool } from "./daemon/tools/triage.js";
+import { registerSignalsTools } from "./daemon/tools/signals.js";
+import { registerHierarchyTools } from "./daemon/tools/hierarchy.js";
 
 const server = new McpServer({
   name: "interkasten",
@@ -94,6 +96,8 @@ async function main() {
   registerProjectTools(server, ctx);
   registerSyncTools(server, ctx, () => syncEngine);
   registerTriageTool(server, ctx);
+  registerSignalsTools(server, ctx);
+  registerHierarchyTools(server, ctx);
 
   // Graceful shutdown
   const cleanup = async () => {

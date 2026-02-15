@@ -1,6 +1,6 @@
 {
   "name": "interkasten",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Living bridge between your projects folder and Notion — bidirectional sync with adaptive AI documentation and pagent workflow automation",
   "author": {
     "name": "mistakeknot",
@@ -27,8 +27,13 @@
     }
   },
   "skills": {
+    "layout": {
+      "description": "Discover, organize, and register projects for Notion sync — interactive hierarchy and classification",
+      "path": "skills/layout/SKILL.md",
+      "user_invocable": true
+    },
     "onboard": {
-      "description": "Triage projects, generate missing docs per tier, establish drift baselines, sync to Notion",
+      "description": "Classify projects, generate missing docs per tier, establish drift baselines, sync to Notion",
       "path": "skills/onboard/SKILL.md",
       "user_invocable": true
     }

@@ -18,8 +18,14 @@ export const DEFAULT_CONFIG_YAML = `# interkasten configuration
 projects_dir: "~/projects"
 project_detection:
   markers: [".git", ".beads"]
-  exclude: ["node_modules", ".cache", "vendor"]
-  max_depth: 2
+  exclude: ["node_modules", ".cache", "vendor", "dist", "build", ".next", "venv", ".venv"]
+  max_depth: 5
+  hierarchy_marker: ".beads"
+
+# Layout (populated by /interkasten:layout skill)
+layout:
+  resolve_symlinks: true
+  overrides: []
 
 # Notion connection (token from $INTERKASTEN_NOTION_TOKEN env var)
 notion:

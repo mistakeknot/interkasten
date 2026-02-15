@@ -5,7 +5,7 @@ import type { DaemonContext } from "../context.js";
 import type { SyncEngine } from "../../sync/engine.js";
 import { querySyncLog } from "../../store/sync-log.js";
 import { walQueryIncomplete } from "../../store/wal.js";
-import { listProjects, lookupByPath } from "../../sync/entity-map.js";
+import { listProjects, lookupByPath, getDocsForProject } from "../../sync/entity-map.js";
 import { listEntities } from "../../store/entities.js";
 
 /**
@@ -67,13 +67,8 @@ export function registerSyncTools(
           };
         }
 
-        // Find all docs for this project and sync them
-        const allEntities = listEntities(ctx.db);
-        const docs = allEntities.filter(
-          (e) =>
-            e.entityType === "doc" &&
-            e.localPath.startsWith(entity!.localPath)
-        );
+        // Find docs belonging to this project (using parent_id, not path prefix)
+        const docs = getDocsForProject(ctx.db, entity.id);
 
         let synced = 0;
         for (const doc of docs) {

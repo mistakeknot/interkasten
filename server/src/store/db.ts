@@ -93,6 +93,17 @@ export function openDatabase(dbPath?: string): { db: DB; sqlite: Database.Databa
     sqlite.exec("ALTER TABLE entity_map ADD COLUMN doc_tier TEXT");
   }
 
+  if (!colNames.has("parent_id")) {
+    sqlite.exec("ALTER TABLE entity_map ADD COLUMN parent_id INTEGER REFERENCES entity_map(id)");
+  }
+
+  if (!colNames.has("tags")) {
+    sqlite.exec("ALTER TABLE entity_map ADD COLUMN tags TEXT DEFAULT '[]'");
+  }
+
+  // Index for hierarchy lookups
+  sqlite.exec("CREATE INDEX IF NOT EXISTS idx_entity_map_parent_id ON entity_map(parent_id)");
+
   const db = drizzle(sqlite, { schema });
 
   return { db, sqlite };

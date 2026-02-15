@@ -1,6 +1,15 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { existsSync, readdirSync, statSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import {
+  existsSync,
+  readdirSync,
+  statSync,
+  lstatSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  realpathSync,
+} from "fs";
 import { resolve, join, basename } from "path";
 import type { DaemonContext } from "../context.js";
 import { ensureConfigFile, loadConfig, getinterkastenDir } from "../../config/loader.js";
@@ -14,6 +23,15 @@ import {
 } from "../../sync/key-docs.js";
 import { triageProject } from "../../sync/triage.js";
 import { updateDocTier } from "../../store/entities.js";
+
+/**
+ * A discovered project with its hierarchy.
+ */
+export interface DiscoveredProject {
+  path: string;
+  markers: string[]; // which markers were found ([".git"], [".beads"], [".git", ".beads"])
+  children: DiscoveredProject[];
+}
 
 interface InitManifest {
   created_at: string;
@@ -256,7 +274,15 @@ export function registerInitTool(server: McpServer, ctx: DaemonContext): void {
 
       // 5. Scan projects directory
       if (existsSync(projectsDir) && ctx.db) {
-        const discovered = discoverProjects(projectsDir, config.project_detection.markers, config.project_detection.max_depth);
+        const discoveryTree = discoverProjects(
+          projectsDir,
+          config.project_detection.markers,
+          config.project_detection.exclude,
+          config.project_detection.max_depth,
+          config.project_detection.hierarchy_marker,
+          config.layout.resolve_symlinks
+        );
+        const discovered = flattenDiscovery(discoveryTree);
         output.push(`\nDiscovered ${discovered.length} projects in ${projectsDir}:`);
 
         const projectsDbId = ctx.config.notion.databases.projects;
@@ -277,7 +303,7 @@ export function registerInitTool(server: McpServer, ctx: DaemonContext): void {
               });
 
               // Register in entity_map
-              registerProject(ctx.db, projPath, page.id);
+              const projEntity = registerProject(ctx.db, projPath, page.id);
               output.push(`  + ${projName} → ${page.id}`);
 
               // Scan for markdown docs in the project
@@ -300,7 +326,7 @@ export function registerInitTool(server: McpServer, ctx: DaemonContext): void {
               // Set key doc columns on the project page
               try {
                 const keyDocs = findKeyDocs(projPath);
-                const enriched = enrichWithNotionIds(ctx.db, projPath, keyDocs);
+                const enriched = enrichWithNotionIds(ctx.db, projEntity.id, keyDocs);
                 await updateProjectKeyDocs(notion, page.id, enriched);
                 const missing = enriched.filter((d) => !d.path).map((d) => d.type);
                 if (missing.length > 0) {
@@ -392,18 +418,43 @@ async function getWorkspacePageId(notion: NotionClient): Promise<string> {
 }
 
 /**
- * Discover projects in a directory by looking for marker files/dirs.
+ * Discover projects in a directory, returning a hierarchy tree.
+ *
+ * Hierarchy rules:
+ * - Any directory with a marker (.git or .beads) is a project
+ * - If a project has the hierarchy_marker (.beads), it can be a parent — continue recursing
+ * - If a project only has non-hierarchy markers (.git without .beads), it's a leaf — don't recurse
+ * - Intermediate directories without any marker are transparent (traversed, not registered)
+ * - Parent-child: nearest ancestor with the hierarchy_marker is the parent
+ *
+ * @param seenPaths - Set of resolved real paths for symlink deduplication
  */
-function discoverProjects(
+export function discoverProjects(
   dir: string,
   markers: string[],
+  exclude: string[],
   maxDepth: number,
-  currentDepth = 0
-): string[] {
+  hierarchyMarker: string,
+  resolveSymlinks: boolean,
+  currentDepth = 0,
+  seenPaths?: Set<string>
+): DiscoveredProject[] {
   if (currentDepth >= maxDepth) return [];
   if (!existsSync(dir)) return [];
 
-  const results: string[] = [];
+  const seen = seenPaths ?? new Set<string>();
+
+  // Symlink dedup: resolve to real path, skip if already seen
+  if (resolveSymlinks) {
+    try {
+      const realPath = realpathSync(dir);
+      if (seen.has(realPath)) return [];
+      seen.add(realPath);
+    } catch {
+      // Can't resolve — proceed with original path
+    }
+  }
+
   let entries: string[];
   try {
     entries = readdirSync(dir);
@@ -411,27 +462,67 @@ function discoverProjects(
     return [];
   }
 
-  // Check if this directory is a project
-  const hasMarker = markers.some((marker) => entries.includes(marker));
-  if (hasMarker && currentDepth > 0) {
-    results.push(dir);
-    return results; // Don't recurse into project subdirs
+  const excludeSet = new Set(exclude);
+
+  // Check which markers this directory has
+  const foundMarkers = markers.filter((m) => entries.includes(m));
+  const isProject = foundMarkers.length > 0 && currentDepth > 0;
+  const hasHierarchyMarker = foundMarkers.includes(hierarchyMarker);
+
+  if (isProject && !hasHierarchyMarker) {
+    // Leaf project (e.g., .git only, no .beads) — register, don't recurse
+    return [{ path: dir, markers: foundMarkers, children: [] }];
   }
 
-  // Recurse into subdirectories
+  // Either: (a) this is a hierarchy-capable project (.beads) — recurse for children
+  //     or: (b) this is not a project at all — recurse to find projects below
+  const children: DiscoveredProject[] = [];
+
   for (const entry of entries) {
-    if (entry.startsWith(".") || entry === "node_modules") continue;
+    if (entry.startsWith(".") || excludeSet.has(entry)) continue;
     const fullPath = join(dir, entry);
     try {
-      if (statSync(fullPath).isDirectory()) {
-        results.push(...discoverProjects(fullPath, markers, maxDepth, currentDepth + 1));
+      // Skip symlinks to non-directories and check symlink targets
+      const lstats = lstatSync(fullPath);
+      if (lstats.isSymbolicLink()) {
+        if (!resolveSymlinks) continue; // skip symlinks if not resolving
+        // For symlinks, check if target is a directory
+        try {
+          if (!statSync(fullPath).isDirectory()) continue;
+        } catch {
+          continue; // broken symlink
+        }
+      } else if (!lstats.isDirectory()) {
+        continue;
       }
+
+      children.push(
+        ...discoverProjects(fullPath, markers, exclude, maxDepth, hierarchyMarker, resolveSymlinks, currentDepth + 1, seen)
+      );
     } catch {
       // Skip inaccessible dirs
     }
   }
 
-  return results;
+  if (isProject) {
+    // This is a hierarchy-capable project with children
+    return [{ path: dir, markers: foundMarkers, children }];
+  }
+
+  // Not a project — return discovered children as-is (transparent directory)
+  return children;
+}
+
+/**
+ * Flatten a discovery tree into a list of paths (for backward compatibility).
+ */
+export function flattenDiscovery(projects: DiscoveredProject[]): string[] {
+  const result: string[] = [];
+  for (const p of projects) {
+    result.push(p.path);
+    result.push(...flattenDiscovery(p.children));
+  }
+  return result;
 }
 
 /**

@@ -9,7 +9,7 @@ import { triageProject, type DocTier, type TriageResult } from "../../sync/triag
 export function registerTriageTool(server: McpServer, ctx: DaemonContext): void {
   server.tool(
     "interkasten_triage",
-    "Classify registered projects into doc tiers (Product/Tool/Inactive) based on local signals (LOC, git history, manifests, etc.). Determines which key docs each project needs.",
+    "Legacy: classify projects into doc tiers using hardcoded thresholds. Prefer interkasten_gather_signals (returns raw signals for the agent to interpret) + agent-driven classification instead.",
     {
       project: z
         .string()

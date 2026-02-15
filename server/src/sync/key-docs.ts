@@ -1,9 +1,9 @@
 import { existsSync } from "fs";
-import { join, basename, relative } from "path";
+import { join, basename } from "path";
 import { readdirSync } from "fs";
 import type { DB } from "../store/db.js";
-import { listEntities } from "../store/entities.js";
 import type { NotionClient } from "./notion-client.js";
+import { getDocsForProject } from "./entity-map.js";
 import { TIER_DOC_REQUIREMENTS, type DocTier } from "./triage.js";
 
 /**
@@ -77,16 +77,14 @@ function findKeyDoc(projectPath: string, type: KeyDocType): string | null {
 
 /**
  * Enrich key doc results with Notion page IDs from the entity map.
+ * Uses parent_id FK to find docs belonging to the project (not path prefix).
  */
 export function enrichWithNotionIds(
   db: DB,
-  projectPath: string,
+  projectId: number,
   keyDocs: KeyDocResult[]
 ): KeyDocResult[] {
-  const allDocs = listEntities(db, "doc");
-  const projectDocs = allDocs.filter((e) =>
-    e.localPath.startsWith(projectPath)
-  );
+  const projectDocs = getDocsForProject(db, projectId);
 
   return keyDocs.map((kd) => {
     if (!kd.path) return kd;
