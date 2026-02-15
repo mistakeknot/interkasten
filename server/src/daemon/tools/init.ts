@@ -150,11 +150,18 @@ export function registerInitTool(server: McpServer, ctx: DaemonContext): void {
         };
 
         try {
-          // Create Projects database
+          // Create Projects database (container + data source)
+          const workspacePageId = await getWorkspacePageId(notion);
           const projectsDb = await notion.call(async () => {
             return notion.raw.databases.create({
-              parent: { type: "page_id", page_id: await getWorkspacePageId(notion) },
+              parent: { type: "page_id", page_id: workspacePageId },
               title: [{ type: "text", text: { content: "Projects" } }],
+            });
+          });
+          const projectsDsId = await notion.resolveDataSourceId(projectsDb.id);
+          await notion.call(async () => {
+            return notion.raw.dataSources.update({
+              data_source_id: projectsDsId,
               properties: {
                 Name: { title: {} },
                 Status: {
@@ -193,8 +200,14 @@ export function registerInitTool(server: McpServer, ctx: DaemonContext): void {
           // Create Research Inbox database
           const researchDb = await notion.call(async () => {
             return notion.raw.databases.create({
-              parent: { type: "page_id", page_id: await getWorkspacePageId(notion) },
+              parent: { type: "page_id", page_id: workspacePageId },
               title: [{ type: "text", text: { content: "Research Inbox" } }],
+            });
+          });
+          const researchDsId = await notion.resolveDataSourceId(researchDb.id);
+          await notion.call(async () => {
+            return notion.raw.dataSources.update({
+              data_source_id: researchDsId,
               properties: {
                 Title: { title: {} },
                 URL: { url: {} },
@@ -224,8 +237,14 @@ export function registerInitTool(server: McpServer, ctx: DaemonContext): void {
           // Create Pagent Workflows database
           const workflowsDb = await notion.call(async () => {
             return notion.raw.databases.create({
-              parent: { type: "page_id", page_id: await getWorkspacePageId(notion) },
+              parent: { type: "page_id", page_id: workspacePageId },
               title: [{ type: "text", text: { content: "Pagent Workflows" } }],
+            });
+          });
+          const workflowsDsId = await notion.resolveDataSourceId(workflowsDb.id);
+          await notion.call(async () => {
+            return notion.raw.dataSources.update({
+              data_source_id: workflowsDsId,
               properties: {
                 Name: { title: {} },
                 Status: {
@@ -287,13 +306,14 @@ export function registerInitTool(server: McpServer, ctx: DaemonContext): void {
 
         const projectsDbId = ctx.config.notion.databases.projects;
         if (projectsDbId) {
+          const projectsDsId = await notion.resolveDataSourceId(projectsDbId);
           for (const projPath of discovered) {
             const projName = basename(projPath);
             try {
               // Create project page in Notion
               const page = await notion.call(async () => {
                 return notion.raw.pages.create({
-                  parent: { database_id: projectsDbId },
+                  parent: { data_source_id: projectsDsId },
                   properties: {
                     Name: { title: [{ text: { content: projName } }] },
                     Status: { select: { name: "Active" } },
@@ -316,7 +336,7 @@ export function registerInitTool(server: McpServer, ctx: DaemonContext): void {
                   return notion.raw.pages.create({
                     parent: { page_id: page.id },
                     properties: {
-                      title: [{ text: { content: docName } }],
+                      title: { title: [{ text: { content: docName } }] },
                     },
                   });
                 });
@@ -409,7 +429,7 @@ async function getWorkspacePageId(notion: NotionClient): Promise<string> {
     return notion.raw.pages.create({
       parent: { page_id: parentId },
       properties: {
-        title: [{ text: { content: "interkasten" } }],
+        title: { title: [{ text: { content: "interkasten" } }] },
       },
     });
   });

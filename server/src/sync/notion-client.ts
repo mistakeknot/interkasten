@@ -177,6 +177,27 @@ export class NotionClient {
   }
 
   /**
+   * Resolve a database ID to its primary data source ID.
+   * In Notion API v2025-09-03, pages are created under data sources, not databases.
+   * Caches results since data source IDs are stable.
+   */
+  private dataSourceCache = new Map<string, string>();
+
+  async resolveDataSourceId(databaseId: string): Promise<string> {
+    const cached = this.dataSourceCache.get(databaseId);
+    if (cached) return cached;
+
+    const db = await this.client.databases.retrieve({ database_id: databaseId });
+    const dataSources = (db as any).data_sources;
+    if (!dataSources || dataSources.length === 0) {
+      throw new Error(`Database ${databaseId} has no data sources`);
+    }
+    const dsId = dataSources[0].id as string;
+    this.dataSourceCache.set(databaseId, dsId);
+    return dsId;
+  }
+
+  /**
    * Validate the Notion token by calling users.me().
    */
   async validateToken(): Promise<{ valid: boolean; error?: NotionError }> {

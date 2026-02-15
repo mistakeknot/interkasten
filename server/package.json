@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
-    "@notionhq/client": "^2.2.15",
+    "@notionhq/client": "^5.9.0",
     "@tryfabric/martian": "^1.2.4",
     "better-sqlite3": "^11.7.0",
     "chokidar": "^4.0.3",

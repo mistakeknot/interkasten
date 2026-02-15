@@ -256,9 +256,10 @@ export function registerProjectTools(server: McpServer, ctx: DaemonContext): voi
       };
 
       // Create project page in Notion
+      const projectsDsId = await ctx.notion.resolveDataSourceId(projectsDbId);
       const page = await ctx.notion.call(async () => {
         return ctx.notion!.raw.pages.create({
-          parent: { database_id: projectsDbId },
+          parent: { data_source_id: projectsDsId },
           properties: notionProps as any,
         });
       });
@@ -395,9 +396,10 @@ export function registerProjectTools(server: McpServer, ctx: DaemonContext): voi
         if (projectsDbId) {
           try {
             const { getKeyDocDbProperties } = await import("../../sync/key-docs.js");
+            const dsId = await ctx.notion.resolveDataSourceId(projectsDbId);
             await ctx.notion.call(async () => {
-              return ctx.notion!.raw.databases.update({
-                database_id: projectsDbId,
+              return ctx.notion!.raw.dataSources.update({
+                data_source_id: dsId,
                 properties: getKeyDocDbProperties() as any,
               });
             });

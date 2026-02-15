@@ -272,15 +272,17 @@ export function registerHierarchyTools(server: McpServer, ctx: DaemonContext): v
             multi_select: options ? { options } : {},
           };
           break;
-        case "relation":
+        case "relation": {
           // Self-referential relation for hierarchy
+          const dsId = await ctx.notion!.resolveDataSourceId(projectsDbId);
           propDef[name] = {
             relation: {
-              database_id: projectsDbId,
+              data_source_id: dsId,
               single_property: {},
             },
           };
           break;
+        }
         case "url":
           propDef[name] = { url: {} };
           break;
@@ -299,9 +301,10 @@ export function registerHierarchyTools(server: McpServer, ctx: DaemonContext): v
       }
 
       try {
+        const dsId = await ctx.notion!.resolveDataSourceId(projectsDbId);
         await ctx.notion.call(async () => {
-          return ctx.notion!.raw.databases.update({
-            database_id: projectsDbId,
+          return ctx.notion!.raw.dataSources.update({
+            data_source_id: dsId,
             properties: propDef as any,
           });
         });
