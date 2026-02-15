@@ -1,7 +1,7 @@
 # Pipeline Operations & Schema Evolution Review
 
 **Reviewer focus**: Sync Engine operations, Pagent DAG execution, error policies, daemon lifecycle, rate limiting
-**Document**: PRD-MVP.md (Interkasten Design Document)
+**Document**: PRD-MVP.md (interkasten Design Document)
 **Date**: 2026-02-14
 **Stage 1 P0 context**: DI-02 (crash recovery), DI-03 (Notion timestamp granularity), A3 (API backpressure), A7 (daemon restart)
 

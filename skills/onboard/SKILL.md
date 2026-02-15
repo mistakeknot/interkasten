@@ -8,7 +8,7 @@ Use when: user says "onboard projects", "fill doc gaps", "triage and generate do
 
 ## Prerequisites
 
-- Interkasten MCP server running (tools available: `interkasten_triage`, `interkasten_sync`, `interkasten_refresh_key_docs`)
+- interkasten MCP server running (tools available: `interkasten_triage`, `interkasten_sync`, `interkasten_refresh_key_docs`)
 - Notion token set (`INTERKASTEN_NOTION_TOKEN`)
 - Projects registered via `interkasten_init`
 

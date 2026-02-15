@@ -17,14 +17,14 @@
 6. [Limitations & Known Issues](#6-limitations--known-issues)
 7. [License & Commercial Use](#7-license--commercial-use)
 8. [Development Activity](#8-development-activity)
-9. [Integration Feasibility for Interkasten](#9-integration-feasibility-for-interkasten)
+9. [Integration Feasibility for interkasten](#9-integration-feasibility-for-interkasten)
 10. [Recommendation](#10-recommendation)
 
 ---
 
 ## 1. Executive Summary
 
-go-notion-md-sync is a **Go CLI tool** (not a library) that provides bidirectional sync between local markdown files and Notion pages. It is a **solo-developer project** (~2 stars, 0 forks, 108 commits all by `byvfx`) created in June 2025. While it covers an impressive breadth of features on paper, the codebase reveals several significant architectural gaps that make it unsuitable as a dependency for Interkasten. It is best understood as a **functional but immature CLI tool** with limited battle-testing.
+go-notion-md-sync is a **Go CLI tool** (not a library) that provides bidirectional sync between local markdown files and Notion pages. It is a **solo-developer project** (~2 stars, 0 forks, 108 commits all by `byvfx`) created in June 2025. While it covers an impressive breadth of features on paper, the codebase reveals several significant architectural gaps that make it unsuitable as a dependency for interkasten. It is best understood as a **functional but immature CLI tool** with limited battle-testing.
 
 ### Key Findings
 
@@ -419,7 +419,7 @@ This appears to be a **personal/hobby project** that saw intense development ove
 
 ---
 
-## 9. Integration Feasibility for Interkasten
+## 9. Integration Feasibility for interkasten
 
 ### 9.1 Option A: Shell Out to CLI
 

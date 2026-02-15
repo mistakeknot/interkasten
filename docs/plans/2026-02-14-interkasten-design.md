@@ -1,4 +1,4 @@
-# Interkasten: Design Document
+# interkasten: Design Document
 
 > **Date**: 2026-02-14
 > **Status**: Draft
@@ -27,9 +27,9 @@
 
 ## 1. Overview
 
-### What Is Interkasten?
+### What Is interkasten?
 
-Interkasten is a Claude Code plugin + MCP server that creates a **living bridge between a local projects folder and a Notion workspace**. It:
+interkasten is a Claude Code plugin + MCP server that creates a **living bridge between a local projects folder and a Notion workspace**. It:
 
 1. **Discovers** local projects (any directory with `.git/` or `.beads/`)
 2. **Mirrors** each project as a Notion page/database with auto-generated documentation
@@ -779,12 +779,12 @@ All tools start with `interkasten_` for prefix filtering. Descriptions use domai
 #!/bin/bash
 DAEMON_STATUS=$(interkasten status --json 2>/dev/null)
 if [ $? -ne 0 ]; then
-  echo '{"status":"context","message":"Interkasten daemon not running. Use /interkasten:init."}'
+  echo '{"status":"context","message":"interkasten daemon not running. Use /interkasten:init."}'
   exit 0
 fi
 PROJECTS=$(echo "$DAEMON_STATUS" | jq '.projects_tracked')
 PENDING=$(echo "$DAEMON_STATUS" | jq '.pending_operations')
-echo "{\"status\":\"context\",\"message\":\"Interkasten: ${PROJECTS} projects, ${PENDING} pending ops\"}"
+echo "{\"status\":\"context\",\"message\":\"interkasten: ${PROJECTS} projects, ${PENDING} pending ops\"}"
 ```
 
 **`PostToolUse(Edit|Write)`** — Fast-path file change notification:
@@ -1000,11 +1000,11 @@ export INTERKASTEN_NOTION_TOKEN="ntn_..."
 User's Machine
 │
 ├── Claude Code
-│   ├── Interkasten Plugin (hooks, skills, commands, agents)
+│   ├── interkasten Plugin (hooks, skills, commands, agents)
 │   └── MCP Client ──stdio──┐
 │                            │
 │   ┌────────────────────────┴──────────────────────┐
-│   │         Interkasten Daemon (MCP Server)        │
+│   │         interkasten Daemon (MCP Server)        │
 │   │                                                │
 │   │  FS Watcher ─── Sync Engine ─── Pagent Engine  │
 │   │                      │                         │
@@ -1181,7 +1181,7 @@ Premium workflow packs sold individually or bundled:
 | Content Pipeline | $29 | Blog post drafter, social media extractor, newsletter curator, content calendar sync |
 | Full Bundle | $99 | All packs + future packs for 1 year |
 
-**Layer 3: Interkasten Cloud (SaaS subscription)**
+**Layer 3: interkasten Cloud (SaaS subscription)**
 
 Hosted service eliminating self-hosting friction:
 

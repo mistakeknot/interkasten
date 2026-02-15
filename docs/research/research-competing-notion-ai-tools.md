@@ -1,6 +1,6 @@
 # Competitive Landscape: AI + Notion Tools (February 2026)
 
-> Research compiled February 14, 2026 for the Interkasten project.
+> Research compiled February 14, 2026 for the interkasten project.
 > Goal: Understand the competitive landscape for tools combining AI coding agents with Notion.
 
 ---
@@ -39,7 +39,7 @@
   4. **Spec to Implementation** -- turns specifications into actionable tasks
 - Slash commands: `/notion-search`, `/notion-create-page`, `/notion-query-database`
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - Covers basic CRUD operations on Notion pages/databases from within Claude Code
 - Skills are task-oriented (meeting notes, knowledge capture) but NOT codebase-aware
 - No bidirectional sync -- it pushes to Notion but doesn't pull changes back into local files
@@ -60,7 +60,7 @@
 - Skills activate automatically based on conversational context -- Claude decides when to invoke them
 - Installation via `git clone` to `~/.claude/plugins/notion-skills`
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - Essentially the standalone skills portion of the official plugin
 - No sync layer, no codebase awareness, no adaptive docs
 
@@ -76,7 +76,7 @@
 - Localizes content for local use (Notion -> Markdown direction)
 - Designed for developers who want Notion docs available locally during coding
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - One-directional (Notion -> Markdown), not truly bidirectional
 - Doesn't generate documentation from code -- it imports existing Notion docs
 - No adaptive layer, no pagent workflows
@@ -102,7 +102,7 @@
 - Imports structured Notion content back into searchable memories
 - Formats content with mermaid diagrams, technical documentation structure
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - **Closest competitor conceptually** -- bidirectional sync between an AI agent's knowledge and Notion
 - However, it syncs *agent memories* (Byterover-specific), not codebase documentation
 - Doesn't watch code changes or auto-generate docs from source
@@ -121,7 +121,7 @@
 - Bulk content creation, automated page/database management, smart commenting
 - SOC 2 Type 2 compliant
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - Infrastructure/middleware layer, not an end-user tool
 - Provides the plumbing but no intelligence about what to sync or when
 
@@ -141,7 +141,7 @@
 - Each "generation" (processing source files) costs one credit
 - Code refactoring tool included
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - Generates documentation FROM code (similar goal)
 - Does NOT output to Notion -- produces standalone Markdown/HTML
 - No Notion integration, no bidirectional sync
@@ -160,7 +160,7 @@
 - Context-aware AI editor for drafting, editing, maintaining docs
 - Specializes in API references and technical guides
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - Focused on public-facing developer documentation, not internal knowledge management
 - Generates documentation sites, not Notion pages
 - No Notion integration
@@ -178,7 +178,7 @@
 - Auto-updates documentation when code changes
 - IDE integration
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - **Closest to "adaptive documentation" concept** -- docs update when code changes
 - However, docs live in Swimm's own platform, not Notion
 - No Notion output or integration
@@ -195,7 +195,7 @@
 - Combines Git synchronization for developers with visual editing for non-technical users
 - AI-powered editor and coding agents for continuous documentation updates
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - Has Git sync (similar to watching code changes)
 - Has a Notion-style editor but is NOT Notion itself
 - Separate platform, not an integration with existing Notion workspaces
@@ -213,7 +213,7 @@
 - Reviews docs like a CPO -- checks for gaps, suggests improvements
 - Custom document templates and "Projects" feature for saved knowledge
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - Has Notion integration but it's one-directional (export TO Notion)
 - Focused specifically on PRDs, not general documentation
 - No codebase awareness -- generates from human input, not code analysis
@@ -234,7 +234,7 @@
 - Permission-aware: only shows content user has GitHub access to
 - Stores embeddings in Turbopuffer vector database
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - Read-only: makes GitHub content searchable in Notion, but doesn't generate documentation
 - No documentation creation, no adaptive docs
 - Doesn't create Notion pages from code analysis
@@ -261,7 +261,7 @@
 - AI Memory through "Agent Instructions Pages" -- learns preferences and adapts
 - Custom Agents coming: shareable across teams, triggered by schedules/events
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - Powerful WITHIN Notion but has no concept of local development environment
 - Cannot interact with local files, codebases, or CLI tools
 - No bidirectional sync with local Markdown/code files
@@ -281,9 +281,9 @@
 - Can chain Claude/GPT calls with Notion operations
 - Self-hostable (critical for data privacy)
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - General-purpose automation, not specifically for codebase -> Notion documentation
-- Could theoretically be used to build something similar to Interkasten, but requires significant custom workflow building
+- Could theoretically be used to build something similar to interkasten, but requires significant custom workflow building
 - No pre-built codebase-to-documentation intelligence
 - No adaptive documentation concept
 
@@ -299,7 +299,7 @@
 - Simple trigger -> action model
 - "AI Actions" feature for natural language workflow creation
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - Too general-purpose -- you could build simple Notion automations but nothing approaching adaptive documentation
 - Expensive at scale (per-task pricing)
 - No codebase awareness
@@ -315,7 +315,7 @@
 - Can inject GPT-4 or Claude directly into Notion workflows
 - Good for connecting multiple services
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - Similar to Zapier/n8n -- general purpose, not specialized
 - Visual workflow builder is nice but building codebase-to-docs would be very complex
 
@@ -335,7 +335,7 @@
 - Real-time updates, custom field mapping, historical data sync
 - No duplicates or infinite loops
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - Syncs work items (issues, tasks), NOT documentation
 - No documentation generation from code
 - No AI intelligence -- purely structural data sync
@@ -352,7 +352,7 @@
 - Preview GitHub content in Notion
 - Automatic status updates when PRs merge
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - Very basic: links and previews, not documentation sync
 - No AI, no generation, no bidirectional content sync
 
@@ -370,7 +370,7 @@ Several GitHub Actions exist for syncing documentation:
 | **markdown-to-notion** (tryfabric) | Markdown -> Notion | Appends synced blocks, prevents duplicates |
 | **notion-to-github-sync-action** (Novu) | Notion -> Markdown | Syncs Notion pages to Markdown files on GitHub |
 
-**How they compare to Interkasten:**
+**How they compare to interkasten:**
 - These are CI/CD building blocks, not intelligent tools
 - Mostly one-directional (you'd need to combine multiple actions for bidirectional)
 - No AI -- purely structural conversion
@@ -392,13 +392,13 @@ Several GitHub Actions exist for syncing documentation:
 - Selective file staging, dry run options
 - 2x faster pull with concurrent processing (v0.14.0+)
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - **Strongest bidirectional sync competitor** for raw Markdown <-> Notion
 - However, it's a dumb sync tool -- no AI, no documentation generation
 - Doesn't understand code or generate docs from codebases
 - No adaptive layer -- syncs what you write, doesn't write for you
 - No pagent workflows, no agent integration
-- Could potentially be used as a sync layer underneath an intelligent tool like Interkasten
+- Could potentially be used as a sync layer underneath an intelligent tool like interkasten
 
 ### 4e. Mk Notes
 
@@ -410,7 +410,7 @@ Several GitHub Actions exist for syncing documentation:
 - Write in Markdown, version control with Git, auto-sync to Notion
 - Handles Notion integration transparently
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - One-directional (Markdown -> Notion)
 - No AI, no code awareness, no adaptive docs
 
@@ -425,7 +425,7 @@ Several GitHub Actions exist for syncing documentation:
 - Preserves links between imported documents
 - Maintains document hierarchy
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - One-directional (repo -> Notion)
 - No AI, no adaptive docs
 - Interesting provenance (Sourcegraph understands code search)
@@ -445,7 +445,7 @@ Several GitHub Actions exist for syncing documentation:
 - AI-powered summarization (introduced 2025)
 - Browser extension for Chrome, Safari, Firefox, mobile
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - Manual clipping, not automated research ingestion
 - No classification beyond what the user sets up
 - AI summarization is nice but limited to web content
@@ -463,7 +463,7 @@ Several GitHub Actions exist for syncing documentation:
 - Edit properties directly in popup
 - AI flashcard generation with Anki export
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - Consumer-focused web clipping, not developer documentation
 - AI features are limited to summarization and flashcards
 - No codebase awareness, no adaptive docs
@@ -479,7 +479,7 @@ Several GitHub Actions exist for syncing documentation:
 - Runs directly inside the browser
 - Can trigger workflows based on clipped content
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - Focused on web content capture, not code documentation
 - Interesting "orchestration" concept but no AI documentation generation
 
@@ -494,7 +494,7 @@ Several GitHub Actions exist for syncing documentation:
 - Combines scattered data into clear, actionable briefs
 - Works within Notion's permissions model
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - Searches existing content, doesn't generate new documentation from code
 - Confined to Notion's ecosystem
 - No local file awareness, no CLI integration
@@ -511,11 +511,11 @@ Several GitHub Actions exist for syncing documentation:
 - Works on top of existing tools without data migration
 - Quick setup (minutes, not months)
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - Knowledge aggregation tool, not documentation generator
 - Reads from Notion but doesn't write to it
 - Focused on customer support automation, not developer documentation
-- Expensive for what it does relative to Interkasten's scope
+- Expensive for what it does relative to interkasten's scope
 
 ### 5f. Context Link AI
 
@@ -527,7 +527,7 @@ Several GitHub Actions exist for syncing documentation:
 - Pulls relevant snippets into AI conversations
 - Doesn't require writing back to Notion
 
-**How it compares to Interkasten:**
+**How it compares to interkasten:**
 - Read-only semantic search, no documentation generation
 - No bidirectional sync
 
@@ -636,7 +636,7 @@ None of the competing AI coding tools have built deep, native Notion integration
 This means the competitive landscape for AI coding agent + Notion is:
 - **Claude Code**: Has official Notion plugin with skills (best current integration)
 - **Cursor/Windsurf/Codex**: MCP-only, no native skills or workflows
-- **Nobody**: Has bidirectional sync + adaptive docs + pagent workflows (Interkasten's opportunity)
+- **Nobody**: Has bidirectional sync + adaptive docs + pagent workflows (interkasten's opportunity)
 
 ---
 
@@ -655,7 +655,7 @@ This means the competitive landscape for AI coding agent + Notion is:
 | Autonomous Notion workflows | Notion Agents 3.0 | Growing (but Notion-only) |
 | Bidirectional agent memory <-> Notion | Byterover Notion Sync | Emerging (memory, not docs) |
 
-### What Nobody Does (Interkasten's Opportunity)
+### What Nobody Does (interkasten's Opportunity)
 
 1. **Bidirectional sync between local codebase documentation and Notion** -- go-notion-md-sync syncs Markdown but doesn't understand code; the Notion plugin pushes/pulls but doesn't maintain sync state
 2. **Adaptive documentation that auto-updates when code changes** -- Swimm does this but outputs to its own platform, not Notion
@@ -684,13 +684,13 @@ As of February 2026, the Notion + AI coding agent space has many participants bu
 
 ### Key Strategic Insights
 
-1. **The sync layer is solved** -- multiple tools handle Markdown <-> Notion conversion. Interkasten shouldn't reinvent this; it should leverage existing infrastructure (go-notion-md-sync, Notion MCP, GitHub Actions) and add the intelligence layer on top.
+1. **The sync layer is solved** -- multiple tools handle Markdown <-> Notion conversion. interkasten shouldn't reinvent this; it should leverage existing infrastructure (go-notion-md-sync, Notion MCP, GitHub Actions) and add the intelligence layer on top.
 
-2. **Notion MCP is the standard interface** -- every AI coding tool (Claude Code, Cursor, Windsurf) uses it. Interkasten should build on top of Notion MCP, not around it.
+2. **Notion MCP is the standard interface** -- every AI coding tool (Claude Code, Cursor, Windsurf) uses it. interkasten should build on top of Notion MCP, not around it.
 
-3. **Notion Agents are the biggest competitive threat** -- if Notion adds code-awareness to their agents (via deeper GitHub integration + Custom Agents with triggers), they could partially replicate Interkasten's value prop. However, they'll never own the local development experience.
+3. **Notion Agents are the biggest competitive threat** -- if Notion adds code-awareness to their agents (via deeper GitHub integration + Custom Agents with triggers), they could partially replicate interkasten's value prop. However, they'll never own the local development experience.
 
-4. **The "adaptive" angle is defensible** -- no tool watches code changes and auto-updates Notion documentation. This is Interkasten's strongest differentiator.
+4. **The "adaptive" angle is defensible** -- no tool watches code changes and auto-updates Notion documentation. This is interkasten's strongest differentiator.
 
 5. **Pagent workflows are novel** -- autonomous, page-level agents that maintain documentation are not something anyone else is building. This is genuinely new.
 
@@ -709,7 +709,7 @@ As of February 2026, the Notion + AI coding agent space has many participants bu
 | Official Notion Plugin | Free | Free |
 | n8n | Free (self-hosted) | Self-hosted or cloud |
 
-Interkasten's pricing should consider:
+interkasten's pricing should consider:
 - The official Notion plugin is free, setting expectations
 - Developer tools tend toward open core or usage-based models
 - The "adaptive" and "pagent" features justify a premium over basic sync tools

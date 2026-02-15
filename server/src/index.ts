@@ -3,7 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { resolve } from "path";
 import { writeFileSync } from "fs";
 
-import { loadConfig, getInterkastenDir } from "./config/loader.js";
+import { loadConfig, getinterkastenDir } from "./config/loader.js";
 import { openDatabase, closeDatabase } from "./store/db.js";
 import { NotionClient } from "./sync/notion-client.js";
 import { SyncEngine } from "./sync/engine.js";
@@ -26,7 +26,7 @@ async function main() {
   const config = loadConfig();
 
   // 2. Open database + migrate
-  const interkastenDir = getInterkastenDir();
+  const interkastenDir = getinterkastenDir();
   const dbPath = resolve(interkastenDir, "state.db");
   const { db, sqlite } = openDatabase(dbPath);
 

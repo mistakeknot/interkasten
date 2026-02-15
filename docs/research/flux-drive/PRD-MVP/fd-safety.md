@@ -1,4 +1,4 @@
-# Flux-Drive Safety Review: Interkasten PRD-MVP
+# Flux-Drive Safety Review: interkasten PRD-MVP
 
 ## Findings Index
 
@@ -35,7 +35,7 @@
 
 ## Summary
 
-The Interkasten PRD describes a bidirectional sync daemon between local filesystems and Notion with autonomous AI workflows. The architecture introduces significant security and deployment risks:
+The interkasten PRD describes a bidirectional sync daemon between local filesystems and Notion with autonomous AI workflows. The architecture introduces significant security and deployment risks:
 
 **Security**: The Notion API token is the single authentication credential for the entire system. Current design exposes it in plugin manifest environment variables (visible to all hooks), potentially leaks it into SQLite state storage, and provides no rotation mechanism. Hook scripts parse untrusted tool output JSON and execute shell commands without input sanitization. Pagent script-based actions allow arbitrary command execution with Notion page data as stdin. Cloudflared tunnel binaries are auto-downloaded without signature verification. Webhook receivers have no documented authentication.
 

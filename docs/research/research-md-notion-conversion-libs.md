@@ -1,7 +1,7 @@
 # Research: Markdown-Notion Block Conversion Libraries (TypeScript/JavaScript)
 
 **Date:** 2026-02-14
-**Purpose:** Evaluate whether TypeScript libraries can handle Markdown<->Notion block conversion for the Interkasten MCP server, or whether we need Go-based conversion (go-notion-md-sync).
+**Purpose:** Evaluate whether TypeScript libraries can handle Markdown<->Notion block conversion for the interkasten MCP server, or whether we need Go-based conversion (go-notion-md-sync).
 
 ---
 
@@ -333,7 +333,7 @@ For **rich Notion content** (callouts, toggles, columns, databases, colored text
 
 ---
 
-## 8. Recommendation for Interkasten
+## 8. Recommendation for interkasten
 
 ### We Do NOT Need go-notion-md-sync for Conversion
 

@@ -542,7 +542,7 @@ Alternative: `bottleneck` if we need Redis clustering later (we won't for a sing
 
 ## Recommended Stack
 
-Based on this research, here is the recommended library stack for the Interkasten sync engine:
+Based on this research, here is the recommended library stack for the interkasten sync engine:
 
 ### Core Libraries (Must Use)
 

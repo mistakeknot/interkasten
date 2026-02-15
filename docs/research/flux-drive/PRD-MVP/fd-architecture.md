@@ -1,6 +1,6 @@
 # Flux-Drive Architecture Review: PRD-MVP
 
-**Document**: `/tmp/flux-drive-PRD-MVP-1771064907.md` (Interkasten Design Document)
+**Document**: `/tmp/flux-drive-PRD-MVP-1771064907.md` (interkasten Design Document)
 **Review Date**: 2026-02-14
 **Reviewer**: Flux-Drive Architecture Agent
 **Focus**: Architecture (three layers), Sync Engine, Pagent System, Technology Stack, Deployment
@@ -80,7 +80,7 @@ Section 6 specifies rate limiting to 3 req/sec via `p-queue` but provides no str
 
 Section 6 claims "Standard content (text, headers, lists, code, links, images): ~95%+ lossless" but the research document `deep-dive-go-notion-md-sync.md` analyzed during this project explicitly documents that `notion-to-md` and similar libraries lose rich text annotations (bold, italic, links in text, colors) on round-trip. The PRD recommends `@tryfabric/martian` (md → Notion) and `notion-to-md` (Notion → md) but provides no evidence that these libraries handle inline formatting. The research doc states: "Rich text annotations lost on round-trip: The converter extracts PlainText from rich text blocks. Bold, italic, strikethrough, underline, code spans, and colors in Notion are lost when pulling." This directly contradicts the 95% claim.
 
-**Evidence**: Section 6 states "~95%+ lossless" and "~70-80%, improvable with custom transformers and metadata comments" for rich Notion content, but Section 10 lists `notion-to-md` (131K downloads/week) without noting its known limitations. The research doc `/root/projects/Interkasten/docs/research/deep-dive-go-notion-md-sync.md` Section 6.3 "Critical Limitations" item 3 documents annotation loss as a structural issue in markdown converters.
+**Evidence**: Section 6 states "~95%+ lossless" and "~70-80%, improvable with custom transformers and metadata comments" for rich Notion content, but Section 10 lists `notion-to-md` (131K downloads/week) without noting its known limitations. The research doc `/root/projects/interkasten/docs/research/deep-dive-go-notion-md-sync.md` Section 6.3 "Critical Limitations" item 3 documents annotation loss as a structural issue in markdown converters.
 
 **Impact**: Users will experience data loss on their first sync cycle. A Notion page with bold headings and inline code formatting will pull to markdown as plain text, then push back to Notion with all formatting stripped. This destroys user trust in bidirectional sync and makes the tool unsuitable for collaborative editing.
 
@@ -156,7 +156,7 @@ Section 9 describes hooks that fire on lifecycle events (SessionStart, PostToolU
 
 **Impact**: A slow SessionStart hook (e.g., if the daemon is syncing a large vault) blocks the Claude Code session from starting, creating a poor user experience where Claude appears frozen for 10+ seconds on startup.
 
-**Recommendation**: Add explicit timeouts to all hook commands (e.g., `timeout 3s interkasten status --json`). Document the timeout budget in Section 9 and specify fallback behavior (e.g., if the status check times out, inject a "Interkasten: status unknown" message instead of blocking). For SessionStart, consider making the status check asynchronous and injecting the status after the session starts.
+**Recommendation**: Add explicit timeouts to all hook commands (e.g., `timeout 3s interkasten status --json`). Document the timeout budget in Section 9 and specify fallback behavior (e.g., if the status check times out, inject a "interkasten: status unknown" message instead of blocking). For SessionStart, consider making the status check asynchronous and injecting the status after the session starts.
 
 ---
 
@@ -222,7 +222,7 @@ Section 12 states "Auto-provision a cloudflared tunnel exposing a local webhook 
 
 **I4. LOW: Missing analysis of official Notion API limitations**
 
-Section 14 "Competitive Position" compares Interkasten to other tools but does not analyze the limitations of the Notion API itself as a constraint on the design. Known Notion API limitations include: (1) no atomic transactions across multiple page updates, (2) no batch write API (must write blocks one page at a time), (3) rate limits that vary by endpoint, (4) no incremental block updates (must replace entire blocks), and (5) webhook events are at-most-once delivery. The PRD's design assumes these limitations but does not document them as risks.
+Section 14 "Competitive Position" compares interkasten to other tools but does not analyze the limitations of the Notion API itself as a constraint on the design. Known Notion API limitations include: (1) no atomic transactions across multiple page updates, (2) no batch write API (must write blocks one page at a time), (3) rate limits that vary by endpoint, (4) no incremental block updates (must replace entire blocks), and (5) webhook events are at-most-once delivery. The PRD's design assumes these limitations but does not document them as risks.
 
 **Evidence**: Section 14 analyzes competitors but not the Notion API. Section 6 mentions "at-most-once" delivery for webhooks but does not discuss other API limitations.
 
@@ -260,7 +260,7 @@ Section 3 describes the pagent workflow engine but does not specify how users mo
 
 **I8. Clarify whether the plugin is single-workspace or multi-workspace**
 
-Section 11 shows a single `workspace_id` in the config, implying one Notion workspace per installation. However, Section 1 describes Interkasten as creating "a living bridge between a local projects folder and a Notion workspace" (singular). If a user has multiple Notion workspaces (e.g., personal and work), do they need separate plugin installations, or can the plugin sync to multiple workspaces simultaneously?
+Section 11 shows a single `workspace_id` in the config, implying one Notion workspace per installation. However, Section 1 describes interkasten as creating "a living bridge between a local projects folder and a Notion workspace" (singular). If a user has multiple Notion workspaces (e.g., personal and work), do they need separate plugin installations, or can the plugin sync to multiple workspaces simultaneously?
 
 **Rationale**: Multi-workspace support is a common feature request for Notion tools. Clarifying this upfront sets user expectations and avoids scope creep during development.
 
@@ -276,9 +276,9 @@ Section 2 states the daemon "watches both sides" but does not specify what happe
 
 **I10. Provide a migration tool from other Notion sync solutions**
 
-Section 14 positions Interkasten against competitors like go-notion-md-sync and the official Notion plugin, but does not provide a migration path for users of those tools. If a user has markdown files already synced via go-notion-md-sync (with frontmatter containing `notion_id`), will Interkasten recognize those mappings, or will it create duplicate Notion pages?
+Section 14 positions interkasten against competitors like go-notion-md-sync and the official Notion plugin, but does not provide a migration path for users of those tools. If a user has markdown files already synced via go-notion-md-sync (with frontmatter containing `notion_id`), will interkasten recognize those mappings, or will it create duplicate Notion pages?
 
-**Rationale**: Reducing migration friction increases adoption. A simple migration tool that reads existing frontmatter and populates the Interkasten entity map would make switching seamless.
+**Rationale**: Reducing migration friction increases adoption. A simple migration tool that reads existing frontmatter and populates the interkasten entity map would make switching seamless.
 
 ---
 

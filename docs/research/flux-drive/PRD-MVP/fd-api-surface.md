@@ -1,7 +1,7 @@
 # Flux Drive Review: MCP API Surface (33 Tools)
 
 **Reviewer focus**: MCP Server Tool Surface (33 tools), MCP Resources, Configuration schema, Plugin manifest
-**Document**: `/root/projects/Interkasten/docs/PRD-MVP.md` (Section 8, plus Sections 9, 11, 12)
+**Document**: `/root/projects/interkasten/docs/PRD-MVP.md` (Section 8, plus Sections 9, 11, 12)
 **Date**: 2026-02-14
 
 ---

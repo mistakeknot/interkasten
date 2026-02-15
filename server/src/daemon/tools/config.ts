@@ -6,7 +6,7 @@ import { setConfigValue } from "../../config/loader.js";
 export function registerConfigTools(server: McpServer, ctx: DaemonContext): void {
   server.tool(
     "interkasten_config_get",
-    "Read current Interkasten configuration",
+    "Read current interkasten configuration",
     {
       key: z
         .string()
@@ -49,7 +49,7 @@ export function registerConfigTools(server: McpServer, ctx: DaemonContext): void
 
   server.tool(
     "interkasten_config_set",
-    "Update an Interkasten configuration value",
+    "Update an interkasten configuration value",
     {
       key: z.string().describe("Dot-separated config key (e.g. 'sync.poll_interval')"),
       value: z.union([z.string(), z.number(), z.boolean()]).describe("New value"),

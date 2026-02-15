@@ -1,4 +1,4 @@
-# Interkasten: Design Document
+# interkasten: Design Document
 
 > **Date**: 2026-02-14
 > **Status**: Draft
@@ -27,9 +27,9 @@
 
 ## 1. Overview
 
-### What Is Interkasten?
+### What Is interkasten?
 
-Interkasten is a Claude Code plugin + MCP server that creates a **living bridge between a local projects folder and a Notion workspace**. It:
+interkasten is a Claude Code plugin + MCP server that creates a **living bridge between a local projects folder and a Notion workspace**. It:
 
 1. **Discovers** local projects (any directory with `.git/` or `.beads/`)
 2. **Mirrors** each project as a Notion page/database with auto-generated documentation
@@ -719,7 +719,7 @@ Two modes, configurable:
 | Notion Error | User-Facing Message | Remediation |
 |---|---|---|
 | 401 Unauthorized | "Notion token is invalid or expired" | "Regenerate at notion.so/my-integrations and update INTERKASTEN_NOTION_TOKEN" |
-| 403 Forbidden | "Integration lacks access to this page" | "Share the page with your Interkasten integration in Notion" |
+| 403 Forbidden | "Integration lacks access to this page" | "Share the page with your interkasten integration in Notion" |
 | 404 Not Found | "Notion page was deleted or archived" | "Page will be soft-deleted from sync; check Notion trash to restore" |
 | 409 Conflict | "Page was modified during sync" | "Will retry on next sync cycle" |
 | 429 Rate Limited | "Notion API rate limit reached" | "Backing off automatically; operations will resume shortly" |
@@ -733,7 +733,7 @@ Raw HTTP status codes and Notion error codes are logged to `sync_log` for debugg
 - Subscribe to Notion webhook events (23 event types available)
 - Most events delivered within ~1 minute
 - Delivery is at-most-once — polling safety net catches missed events
-- **Webhook receiver authentication:** The local webhook endpoint generates a random 32-byte secret at tunnel creation, stored in `~/.interkasten/webhook-secret`. Incoming webhook requests must include this secret in the `X-Interkasten-Webhook-Secret` header. Requests without a valid secret are rejected with 401. The secret is registered with Notion's webhook subscription so Notion includes it in outgoing requests.
+- **Webhook receiver authentication:** The local webhook endpoint generates a random 32-byte secret at tunnel creation, stored in `~/.interkasten/webhook-secret`. Incoming webhook requests must include this secret in the `X-interkasten-Webhook-Secret` header. Requests without a valid secret are rejected with 401. The secret is registered with Notion's webhook subscription so Notion includes it in outgoing requests.
 
 ### Sync Cadence
 
@@ -966,12 +966,12 @@ MCP tool schemas are the API contract between Claude Code and the daemon. Change
 #!/bin/bash
 DAEMON_STATUS=$(interkasten status --json 2>/dev/null)
 if [ $? -ne 0 ]; then
-  echo '{"status":"context","message":"Interkasten daemon not running. Use /interkasten:init."}'
+  echo '{"status":"context","message":"interkasten daemon not running. Use /interkasten:init."}'
   exit 0
 fi
 PROJECTS=$(echo "$DAEMON_STATUS" | jq '.projects_tracked')
 PENDING=$(echo "$DAEMON_STATUS" | jq '.pending_operations')
-echo "{\"status\":\"context\",\"message\":\"Interkasten: ${PROJECTS} projects, ${PENDING} pending ops\"}"
+echo "{\"status\":\"context\",\"message\":\"interkasten: ${PROJECTS} projects, ${PENDING} pending ops\"}"
 ```
 
 **`PostToolUse(Edit|Write)`** — Fast-path file change notification:
@@ -1231,11 +1231,11 @@ export INTERKASTEN_NOTION_TOKEN="ntn_..."
 User's Machine
 │
 ├── Claude Code
-│   ├── Interkasten Plugin (hooks, skills, commands, agents)
+│   ├── interkasten Plugin (hooks, skills, commands, agents)
 │   └── MCP Client ──stdio──┐
 │                            │
 │   ┌────────────────────────┴──────────────────────┐
-│   │         Interkasten Daemon (MCP Server)        │
+│   │         interkasten Daemon (MCP Server)        │
 │   │                                                │
 │   │  FS Watcher ─── Sync Engine ─── Pagent Engine  │
 │   │                      │                         │
@@ -1289,7 +1289,7 @@ Everything runs locally. The only external dependency is the Notion API.
 - A Notion account (free tier is sufficient)
 - A Notion integration token — created at https://www.notion.so/my-integrations:
   1. Click "New integration"
-  2. Name it "Interkasten" (or any name)
+  2. Name it "interkasten" (or any name)
   3. Select the workspace to sync with
   4. Required capabilities: Read content, Update content, Insert content, Read user information
   5. Copy the "Internal Integration Secret" (starts with `ntn_`)
@@ -1474,7 +1474,7 @@ Premium workflow packs sold individually or bundled:
 | Content Pipeline | $29 | Blog post drafter, social media extractor, newsletter curator, content calendar sync |
 | Full Bundle | $99 | All packs + future packs for 1 year |
 
-**Layer 3: Interkasten Cloud (SaaS subscription)**
+**Layer 3: interkasten Cloud (SaaS subscription)**
 
 Hosted service eliminating self-hosting friction:
 

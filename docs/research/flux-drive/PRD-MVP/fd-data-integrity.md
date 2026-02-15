@@ -1,7 +1,7 @@
-# Data Integrity Review: Interkasten PRD-MVP
+# Data Integrity Review: interkasten PRD-MVP
 
 > **Reviewer**: fd-data-integrity (data pipeline reliability)
-> **Document**: `/root/projects/Interkasten/docs/PRD-MVP.md`
+> **Document**: `/root/projects/interkasten/docs/PRD-MVP.md`
 > **Date**: 2026-02-14
 > **Mode**: Generic (no CLAUDE.md or AGENTS.md in project root; assumptions marked)
 

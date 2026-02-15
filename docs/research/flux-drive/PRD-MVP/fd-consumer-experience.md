@@ -1,7 +1,7 @@
-# Consumer Experience Review: Interkasten PRD-MVP
+# Consumer Experience Review: interkasten PRD-MVP
 
 > **Reviewer**: fd-consumer-experience (consumer onboarding, error handling, upgrade paths)
-> **Document**: `/root/projects/Interkasten/docs/PRD-MVP.md`
+> **Document**: `/root/projects/interkasten/docs/PRD-MVP.md`
 > **Date**: 2026-02-14
 > **Mode**: Generic (no implemented code; review is against the design document)
 > **Stage 1 Context**: FD-UP-002, FD-UP-005, FD-UP-007
@@ -28,7 +28,7 @@
 | MEDIUM | CE-14 | "Technology Stack" | `better-sqlite3` requires native compilation; no fallback or pre-built binary strategy for non-standard platforms |
 | LOW | CE-15 | "Document Model" | Skeleton PRD generation creates perceived-empty Notion pages that look like broken sync |
 | LOW | CE-16 | "Sync Engine" | Sync log stored in Notion database; user cannot debug sync issues when Notion API is the problem |
-| LOW | CE-17 | "Monetization" | No upgrade path documented between free self-hosted and Interkasten Cloud |
+| LOW | CE-17 | "Monetization" | No upgrade path documented between free self-hosted and interkasten Cloud |
 
 **Verdict: needs-changes**
 
@@ -105,7 +105,7 @@ Section 9 (lines 777-788) shows the SessionStart hook:
 ```bash
 DAEMON_STATUS=$(interkasten status --json 2>/dev/null)
 if [ $? -ne 0 ]; then
-  echo '{"status":"context","message":"Interkasten daemon not running. Use /interkasten:init."}'
+  echo '{"status":"context","message":"interkasten daemon not running. Use /interkasten:init."}'
   exit 0
 fi
 ```
@@ -274,7 +274,7 @@ The PRD references the Notion API throughout (Sections 6, 7, 8, 11, 12) but neve
 | HTTP Code | Notion Meaning | User Sees (without translation) | User Should See |
 |-----------|---------------|-------------------------------|----------------|
 | 401 | Invalid token | `APIResponseError: Unauthorized` | "Your Notion token is invalid or expired. Get a new one at notion.so/my-integrations" |
-| 403 | No access to page | `APIResponseError: Forbidden` | "Interkasten doesn't have access to this page. Share it with the integration in Notion." |
+| 403 | No access to page | `APIResponseError: Forbidden` | "interkasten doesn't have access to this page. Share it with the integration in Notion." |
 | 404 | Page/database deleted | `APIResponseError: Not Found` | "The Notion page for ProjectX was deleted. Run /interkasten:sync to re-create it." |
 | 429 | Rate limited | `APIResponseError: Rate limited` | "Notion's API is throttling requests. Sync will retry automatically in 60 seconds." |
 | 502/503 | Notion outage | `APIResponseError: Bad Gateway` | "Notion's API is temporarily down. Sync paused -- will resume when Notion recovers." |
@@ -328,7 +328,7 @@ Recommendation: Specify Zod schema validation for all YAML input. Errors should 
 The PRD describes `~/.interkasten/state.db` as the central state store (Section 2, line 77) and `~/.interkasten/config.yaml` as the config file (Section 11, line 903). No uninstall, reset, or recovery procedure is documented.
 
 Scenarios requiring reset:
-- User wants to completely remove Interkasten and clean up
+- User wants to completely remove interkasten and clean up
 - State.db is corrupted (SQLite WAL file left from crash, schema mismatch after failed migration)
 - User wants to re-run init after changing Notion workspaces
 - Entity map has stale entries pointing to deleted Notion pages
@@ -366,7 +366,7 @@ Section 5 (lines 467-470) describes that when a project is first detected, a "PR
 
 From the consumer perspective: after init, the user opens their Notion workspace and sees 5-20 project pages (one per discovered project), each containing a skeleton PRD. A skeleton PRD is presumably: a title, maybe section headers, maybe placeholder text like "TODO: Describe the project's purpose."
 
-This looks like broken output. The user expected "living documentation" and got empty templates. The adaptive model (Section 5, lines 467-478) means the next improvement comes after "first 5 commits" -- which for an existing project with 500 commits means... immediately? Or does it only count commits made *after* Interkasten was installed?
+This looks like broken output. The user expected "living documentation" and got empty templates. The adaptive model (Section 5, lines 467-478) means the next improvement comes after "first 5 commits" -- which for an existing project with 500 commits means... immediately? Or does it only count commits made *after* interkasten was installed?
 
 Evidence: Section 5 milestone table. The distinction between "project_detected" (skeleton) and "5 commits" (full PRD) is clear for new projects but ambiguous for existing ones with extensive git history.
 
@@ -390,9 +390,9 @@ Recommendation: Store sync log locally in SQLite (`state.db`) as the primary sou
 
 ---
 
-**CE-17. LOW: No upgrade path between free self-hosted and Interkasten Cloud**
+**CE-17. LOW: No upgrade path between free self-hosted and interkasten Cloud**
 
-Section 13 (lines 1184-1192) describes Interkasten Cloud as a hosted alternative with tiered pricing. But no migration path is described:
+Section 13 (lines 1184-1192) describes interkasten Cloud as a hosted alternative with tiered pricing. But no migration path is described:
 
 - Can a self-hosted user migrate their `state.db` to the cloud version?
 - Do they lose sync history?
@@ -500,7 +500,7 @@ Primary sync log in SQLite (`~/.interkasten/state.db` or separate `~/.interkaste
 /interkasten:reset --check     # dry-run: what would be reset
 /interkasten:reset --config    # reset config to defaults (backs up old)
 /interkasten:reset --state     # clear state.db, re-scan projects
-/interkasten:reset --notion    # remove Interkasten databases from Notion
+/interkasten:reset --notion    # remove interkasten databases from Notion
 /interkasten:reset --full      # all of the above
 ```
 

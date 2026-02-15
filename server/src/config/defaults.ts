@@ -11,7 +11,7 @@ export function getDefaultConfig(): Config {
 /**
  * Default YAML config template written during init.
  */
-export const DEFAULT_CONFIG_YAML = `# Interkasten configuration
+export const DEFAULT_CONFIG_YAML = `# interkasten configuration
 # See docs/PRD-MVP.md §11 for full reference
 
 # Project discovery

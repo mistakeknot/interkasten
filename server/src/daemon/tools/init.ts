@@ -3,7 +3,7 @@ import { z } from "zod";
 import { existsSync, readdirSync, statSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { resolve, join, basename } from "path";
 import type { DaemonContext } from "../context.js";
-import { ensureConfigFile, loadConfig, getInterkastenDir } from "../../config/loader.js";
+import { ensureConfigFile, loadConfig, getinterkastenDir } from "../../config/loader.js";
 import { NotionClient } from "../../sync/notion-client.js";
 import { registerProject, registerDoc } from "../../sync/entity-map.js";
 import {
@@ -60,7 +60,7 @@ export function registerInitTool(server: McpServer, ctx: DaemonContext): void {
                 "To get started:",
                 "1. Go to https://www.notion.so/my-integrations",
                 '2. Click "New integration"',
-                '3. Name it "Interkasten"',
+                '3. Name it "interkasten"',
                 "4. Required capabilities: Read content, Update content, Insert content, Read user information",
                 '5. Copy the "Internal Integration Secret" (starts with ntn_)',
                 "6. Run: export INTERKASTEN_NOTION_TOKEN='ntn_...'",
@@ -98,7 +98,7 @@ export function registerInitTool(server: McpServer, ctx: DaemonContext): void {
       output.push("Notion token: valid");
 
       // 3. Check for existing init manifest
-      const interkastenDir = getInterkastenDir();
+      const interkastenDir = getinterkastenDir();
       const manifestPath = resolve(interkastenDir, "init-manifest.json");
       let manifest: InitManifest | null = null;
 
@@ -348,13 +348,13 @@ export function registerInitTool(server: McpServer, ctx: DaemonContext): void {
 
 /**
  * Get a page ID to use as parent for databases.
- * Searches for an existing "Interkasten" page or creates one.
+ * Searches for an existing "interkasten" page or creates one.
  */
 async function getWorkspacePageId(notion: NotionClient): Promise<string> {
-  // Search for existing Interkasten page
+  // Search for existing interkasten page
   const searchResult = await notion.call(async () => {
     return notion.raw.search({
-      query: "Interkasten",
+      query: "interkasten",
       filter: { property: "object", value: "page" },
       page_size: 1,
     });
@@ -374,7 +374,7 @@ async function getWorkspacePageId(notion: NotionClient): Promise<string> {
 
   if (anyPage.results.length === 0) {
     throw new Error(
-      "No accessible Notion pages found. Share a page with your Interkasten integration first."
+      "No accessible Notion pages found. Share a page with your interkasten integration first."
     );
   }
 
@@ -383,7 +383,7 @@ async function getWorkspacePageId(notion: NotionClient): Promise<string> {
     return notion.raw.pages.create({
       parent: { page_id: parentId },
       properties: {
-        title: [{ text: { content: "Interkasten" } }],
+        title: [{ text: { content: "interkasten" } }],
       },
     });
   });

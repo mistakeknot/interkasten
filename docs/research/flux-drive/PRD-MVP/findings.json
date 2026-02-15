@@ -1,6 +1,6 @@
 {
   "reviewed": "2026-02-14",
-  "input": "/root/projects/Interkasten/docs/PRD-MVP.md",
+  "input": "/root/projects/interkasten/docs/PRD-MVP.md",
   "agents_launched": ["fd-architecture", "fd-user-product", "fd-plugin-structure", "fd-data-integrity", "fd-pipeline-operations", "fd-consumer-experience", "fd-api-surface", "fd-safety"],
   "agents_completed": ["fd-architecture", "fd-user-product", "fd-plugin-structure", "fd-data-integrity", "fd-pipeline-operations", "fd-consumer-experience", "fd-api-surface", "fd-safety"],
   "findings": [

@@ -27,7 +27,7 @@ const ERROR_TABLE: Record<number, { message: string; remediation: string }> = {
   },
   403: {
     message: "Integration lacks access to this page",
-    remediation: "Share the page with your Interkasten integration in Notion",
+    remediation: "Share the page with your interkasten integration in Notion",
   },
   404: {
     message: "Notion page was deleted or archived",

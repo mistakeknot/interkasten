@@ -1,4 +1,4 @@
-# Interkasten
+# interkasten
 
 Claude Code plugin + MCP server for bidirectional Notion sync with adaptive AI documentation.
 

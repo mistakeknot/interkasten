@@ -81,7 +81,7 @@ export function loadConfig(configPath?: string): Config {
 /**
  * Get the interkasten directory path, creating it if needed.
  */
-export function getInterkastenDir(): string {
+export function getinterkastenDir(): string {
   if (!existsSync(INTERKASTEN_DIR)) {
     mkdirSync(INTERKASTEN_DIR, { recursive: true });
   }

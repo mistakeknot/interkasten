@@ -1,7 +1,7 @@
 # fd-plugin-structure: Plugin Structure Review of PRD-MVP
 
 **Reviewer**: fd-plugin-structure (Claude Code Plugin Domain)
-**Document**: `/root/projects/Interkasten/docs/PRD-MVP.md`
+**Document**: `/root/projects/interkasten/docs/PRD-MVP.md`
 **Date**: 2026-02-14
 **Mode**: Generic (no CLAUDE.md or AGENTS.md in project root; no implemented plugin code exists yet)
 
