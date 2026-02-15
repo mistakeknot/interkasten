@@ -1,3 +1,16 @@
 {
-  "hooks": []
+  "hooks": [
+    {
+      "event": "Notification",
+      "matcher": "SessionStart",
+      "script": "hooks/session-status.sh",
+      "timeout": 5000
+    },
+    {
+      "event": "Notification",
+      "matcher": "Stop",
+      "script": "hooks/session-end-warn.sh",
+      "timeout": 5000
+    }
+  ]
 }

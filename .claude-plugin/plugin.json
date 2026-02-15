@@ -36,12 +36,21 @@
       "description": "Classify projects, generate missing docs per tier, establish drift baselines, sync to Notion",
       "path": "skills/onboard/SKILL.md",
       "user_invocable": true
+    },
+    "doctor": {
+      "description": "Self-diagnosis — verify config, Notion token, MCP server, database, and sync health",
+      "path": "skills/doctor/SKILL.md",
+      "user_invocable": true
     }
   },
   "commands": {
     "onboard": {
       "description": "Triage all projects, fill doc gaps, establish drift baselines, sync",
       "path": "commands/onboard.md"
+    },
+    "doctor": {
+      "description": "Run interkasten self-diagnosis and health check",
+      "path": "commands/doctor.md"
     }
   },
   "hooks": "hooks/hooks.json"

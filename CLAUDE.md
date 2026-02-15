@@ -85,6 +85,12 @@ Tools expose raw signals and CRUD operations. Intelligence lives in Claude Code 
 
 - `/interkasten:layout` — Interactive project discovery, hierarchy, and registration
 - `/interkasten:onboard` — Classification, doc generation, drift baselines, sync
+- `/interkasten:doctor` — Self-diagnosis: config, token, MCP server, database, sync health
+
+## Hooks
+
+- **SessionStart** — Print brief status (project count, pending WAL) if interkasten is configured
+- **Stop** — Warn if pending sync operations exist
 
 ## Config
 
