@@ -1,16 +1,38 @@
 {
-  "hooks": [
-    {
-      "event": "Notification",
-      "matcher": "SessionStart",
-      "script": "hooks/session-status.sh",
-      "timeout": 5000
-    },
-    {
-      "event": "Notification",
-      "matcher": "Stop",
-      "script": "hooks/session-end-warn.sh",
-      "timeout": 5000
-    }
-  ]
+  "description": "interkasten plugin hooks — Notion sync bridge",
+  "hooks": {
+    "Setup": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/setup.sh\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "SessionStart",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-status.sh\"",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Stop",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-end-warn.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
 }
