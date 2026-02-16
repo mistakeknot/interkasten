@@ -27,19 +27,13 @@ else
     echo "interkasten: WARNING — MCP server build failed. Run: cd server && npm install && npx tsc"
 fi
 
-# Check for Notion token
+# Check for Notion token — guide agent to ask user
 ENV_FILE="${HOME}/.interkasten/.env"
 if [ -z "${INTERKASTEN_NOTION_TOKEN:-}" ]; then
     if [ -f "$ENV_FILE" ] && grep -q 'INTERKASTEN_NOTION_TOKEN=' "$ENV_FILE" 2>/dev/null; then
         : # Token exists in .env, will be loaded by start-mcp.sh
     else
         echo ""
-        echo "interkasten: Notion token not configured. To connect to Notion:"
-        echo "  1. Go to https://www.notion.so/profile/integrations"
-        echo "  2. Create an integration (name: interkasten)"
-        echo "  3. Copy the Internal Integration Secret (starts with ntn_)"
-        echo "  4. Save it:  echo 'INTERKASTEN_NOTION_TOKEN=ntn_...' > ~/.interkasten/.env && chmod 600 ~/.interkasten/.env"
-        echo "  5. Share your Notion pages/databases with the integration"
-        echo "  6. Restart Claude Code"
+        echo "interkasten: Notion token not configured. To set up, create an integration at https://www.notion.so/profile/integrations and paste the token here — I'll save it for you."
     fi
 fi

@@ -26,13 +26,12 @@ Check if `INTERKASTEN_NOTION_TOKEN` environment variable is set. You can infer t
 Call `interkasten_health` to get the full status. If the call succeeds, the MCP server is running (Check 3 passes implicitly).
 
 - **Pass**: Token is set and MCP server responded
-- **Fail (token missing)**: Show setup instructions:
-  1. Go to https://www.notion.so/profile/integrations
-  2. Create an "interkasten" integration
-  3. Copy the Internal Integration Secret (starts with `ntn_`)
-  4. Save it: `echo 'INTERKASTEN_NOTION_TOKEN=ntn_...' > ~/.interkasten/.env && chmod 600 ~/.interkasten/.env`
-  5. Share your Notion pages/databases with the integration
-  6. Restart Claude Code
+- **Fail (token missing)**: Ask the user for their token interactively:
+  1. Tell them to go to https://www.notion.so/profile/integrations and create an "interkasten" integration (or use an existing one)
+  2. Ask them to paste the Internal Integration Secret (starts with `ntn_`)
+  3. When they provide it, save it by writing `INTERKASTEN_NOTION_TOKEN=<token>` to `~/.interkasten/.env` and running `chmod 600 ~/.interkasten/.env`
+  4. Remind them to share their Notion pages/databases with the integration
+  5. Tell them to restart Claude Code for the token to take effect
 - **Fail (MCP unreachable)**: "MCP server not responding. Check that the interkasten plugin is installed (`claude plugins list`) and the server process is running."
 
 If MCP is unreachable, mark checks 4-7 as "skipped (MCP unavailable)".
