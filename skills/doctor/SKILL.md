@@ -27,11 +27,11 @@ Call `interkasten_health` to get the full status. If the call succeeds, the MCP 
 
 - **Pass**: Token is set and MCP server responded
 - **Fail (token missing)**: Show setup instructions:
-  1. Go to https://www.notion.so/my-integrations
-  2. Create a "interkasten" integration
+  1. Go to https://www.notion.so/profile/integrations
+  2. Create an "interkasten" integration
   3. Copy the Internal Integration Secret (starts with `ntn_`)
-  4. `export INTERKASTEN_NOTION_TOKEN='ntn_...'`
-  5. Add to `.bashrc`/`.zshrc` for persistence
+  4. Save it: `echo 'INTERKASTEN_NOTION_TOKEN=ntn_...' > ~/.interkasten/.env && chmod 600 ~/.interkasten/.env`
+  5. Share your Notion pages/databases with the integration
   6. Restart Claude Code
 - **Fail (MCP unreachable)**: "MCP server not responding. Check that the interkasten plugin is installed (`claude plugins list`) and the server process is running."
 
