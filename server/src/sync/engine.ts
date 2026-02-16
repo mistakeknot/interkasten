@@ -134,6 +134,12 @@ export class SyncEngine {
     // Process remaining queue items
     await this.processQueue();
     await this.queue.onIdle();
+
+    // Clean up expired soft-deleted entities
+    const gcCount = this.runGC();
+    if (gcCount > 0) {
+      console.log(`GC: removed ${gcCount} expired soft-deleted entities`);
+    }
   }
 
   /**
@@ -383,17 +389,24 @@ export class SyncEngine {
 
     // Validate path (safety: prevent path traversal)
     const projectDir = this.findProjectDir(entity.localPath);
-    if (projectDir) {
-      const resolved = resolve(projectDir, basename(entity.localPath));
-      if (!resolved.startsWith(projectDir + "/")) {
-        appendSyncLog(this.db, {
-          entityMapId: entity.id,
-          operation: "error",
-          direction: "notion_to_local",
-          detail: { error: "Path validation failed", path: entity.localPath },
-        });
-        return;
-      }
+    if (!projectDir) {
+      appendSyncLog(this.db, {
+        entityMapId: entity.id,
+        operation: "error",
+        direction: "notion_to_local",
+        detail: { error: "No project directory found — aborting pull", path: entity.localPath },
+      });
+      return;
+    }
+    const resolved = resolve(projectDir, basename(entity.localPath));
+    if (!resolved.startsWith(projectDir + "/")) {
+      appendSyncLog(this.db, {
+        entityMapId: entity.id,
+        operation: "error",
+        direction: "notion_to_local",
+        detail: { error: "Path validation failed", path: entity.localPath },
+      });
+      return;
     }
 
     // Fetch content from Notion
@@ -552,8 +565,16 @@ export class SyncEngine {
       ? frontmatter + "\n" + result.merged
       : result.merged;
 
+    // WAL-protected local write (crash recovery for conflict resolution)
+    const walEntry = walCreatePending(this.db, {
+      entityMapId: entity.id,
+      operation: "merge",
+      newContent: result.merged,
+    });
+
     // Write merged to local
     writeFileSync(entity.localPath, mergedWithFm, "utf-8");
+    walMarkTargetWritten(this.db, walEntry.id);
 
     // Update entity and base content
     const newBase = upsertBaseContent(this.db, result.merged);
@@ -566,8 +587,12 @@ export class SyncEngine {
       lastSyncTs: new Date().toISOString(),
     });
 
+    walMarkCommitted(this.db, walEntry.id);
+
     // Push merged result to Notion (so both sides converge)
     await this.pushUpdate(entity.id, entity.notionId, result.merged, notionHash);
+
+    walDelete(this.db, walEntry.id);
   }
 
   /**
