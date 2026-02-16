@@ -4,6 +4,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SERVER_DIR="$(cd "$SCRIPT_DIR/../server" && pwd)"
 
+# Load .env if token not already set
+if [ -z "${INTERKASTEN_NOTION_TOKEN:-}" ] && [ -f "${HOME}/.interkasten/.env" ]; then
+  set -a
+  . "${HOME}/.interkasten/.env"
+  set +a
+fi
+
 # Auto-install dependencies if missing
 if [ ! -d "$SERVER_DIR/node_modules" ]; then
   echo "Installing interkasten-server dependencies..." >&2
