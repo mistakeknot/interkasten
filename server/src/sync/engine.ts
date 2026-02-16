@@ -34,6 +34,16 @@ import {
 import { walCreatePending, walMarkTargetWritten, walMarkCommitted, walDelete } from "../store/wal.js";
 import { appendSyncLog } from "../store/sync-log.js";
 import { lookupByPath, registerDoc, computeTier } from "./entity-map.js";
+import {
+  fetchBeadsIssues,
+  diffBeadsState,
+  mapBeadsToNotionProperties,
+  mapNotionToBeadsUpdate,
+  updateBeadsIssue,
+  type BeadsIssue,
+} from "./beads-sync.js";
+import { sql } from "drizzle-orm";
+import { softDeleteEntity, gcDeletedEntities } from "../store/entities.js";
 
 export interface SyncEngineOptions {
   config: Config;
@@ -192,7 +202,10 @@ export class SyncEngine {
    */
   private async processPushOperation(op: SyncOperation): Promise<void> {
     if (op.side !== "local") return;
-    if (op.type === "file_removed") return; // Soft-delete handled separately
+    if (op.type === "file_removed") {
+      await this.handleLocalDeletion(op.entityKey);
+      return;
+    }
 
     const filePath = op.entityKey;
     if (!existsSync(filePath)) return;
@@ -605,6 +618,113 @@ export class SyncEngine {
   /**
    * Get current queue status.
    */
+  /**
+   * Poll beads issues for changes and sync to Notion.
+   * Compares current state against stored snapshot to detect changes.
+   */
+  async pollBeadsChanges(): Promise<void> {
+    const projects = listEntities(this.db, "project");
+
+    for (const project of projects) {
+      try {
+        const current = fetchBeadsIssues(project.localPath);
+        if (current.length === 0) continue;
+
+        // Load previous snapshot
+        const prevRow = this.db.all(
+          sql`SELECT snapshot_json FROM beads_snapshot WHERE project_id = ${String(project.id)}`,
+        ) as { snapshot_json: string }[];
+
+        const previous: BeadsIssue[] = prevRow.length > 0
+          ? JSON.parse(prevRow[0].snapshot_json)
+          : [];
+
+        const diff = diffBeadsState(previous, current);
+
+        // Push new/changed issues to Notion
+        for (const issue of [...diff.added, ...diff.modified]) {
+          try {
+            const props = mapBeadsToNotionProperties(issue);
+            // Find existing Notion page for this issue or create new
+            const entity = getEntityByPath(this.db, `${project.localPath}/.beads/${issue.id}`);
+
+            if (entity) {
+              // Update existing
+              await this.notion.call(async () => {
+                await this.notion.raw.pages.update({
+                  page_id: entity.notionId,
+                  properties: props,
+                });
+              }, { pageId: entity.notionId });
+            }
+            // New issues: creation handled by beads integration tool, not auto-create here
+          } catch (err) {
+            appendSyncLog(this.db, {
+              operation: "error",
+              detail: { error: `Beads push failed: ${(err as Error).message}`, issueId: issue.id },
+            });
+          }
+        }
+
+        // Save current snapshot
+        this.db.run(
+          sql`INSERT INTO beads_snapshot (project_id, snapshot_json, updated_at)
+              VALUES (${String(project.id)}, ${JSON.stringify(current)}, datetime('now'))
+              ON CONFLICT(project_id) DO UPDATE SET
+                snapshot_json = ${JSON.stringify(current)},
+                updated_at = datetime('now')`,
+        );
+      } catch (err) {
+        appendSyncLog(this.db, {
+          operation: "error",
+          detail: { error: `Beads poll failed: ${(err as Error).message}`, project: project.localPath },
+        });
+      }
+    }
+  }
+
+  /**
+   * Handle soft-delete when a local file is removed.
+   * Marks entity as deleted, updates Notion page status.
+   */
+  private async handleLocalDeletion(filePath: string): Promise<void> {
+    const entity = getEntityByPath(this.db, filePath);
+    if (!entity) return;
+
+    softDeleteEntity(this.db, entity.id);
+
+    // Update Notion page status to indicate source was deleted
+    try {
+      await this.notion.call(async () => {
+        await this.notion.raw.pages.update({
+          page_id: entity.notionId,
+          properties: {
+            Status: { select: { name: "⚠️ Source Deleted" } },
+          } as any,
+        });
+      }, { pageId: entity.notionId });
+    } catch {
+      // Notion update failure is non-fatal for soft-delete
+    }
+
+    appendSyncLog(this.db, {
+      entityMapId: entity.id,
+      operation: "soft-delete",
+      direction: "local_to_notion",
+      detail: { path: filePath },
+    });
+  }
+
+  /**
+   * Run garbage collection for soft-deleted entities older than retention period.
+   * Default retention: 30 days (aligned with Notion trash retention).
+   */
+  runGC(): number {
+    const retentionMs = 30 * 24 * 60 * 60 * 1000; // 30 days
+    const cutoff = new Date(Date.now() - retentionMs).toISOString();
+    return gcDeletedEntities(this.db, cutoff);
+  }
+
   getStatus(): {
     pending: number;
     active: number;
