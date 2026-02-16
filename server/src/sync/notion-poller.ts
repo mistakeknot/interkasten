@@ -25,17 +25,20 @@ export class NotionPoller {
     let cursor: string | undefined;
     let pages = 0;
 
+    // Resolve database to data source ID (Notion v5)
+    const dataSourceId = await this.notion.resolveDataSourceId(databaseId);
+
     do {
       const response: any = await this.notion.call(async () => {
-        return this.notion.raw.databases.query({
-          database_id: databaseId,
+        return this.notion.raw.dataSources.query({
+          data_source_id: dataSourceId,
           filter: {
             timestamp: "last_edited_time",
             last_edited_time: { after: since.toISOString() },
           },
           start_cursor: cursor,
           page_size: 100,
-        });
+        } as any);
       });
 
       for (const page of response.results) {

@@ -1,25 +1,26 @@
 import { describe, it, expect, vi } from "vitest";
 import { NotionPoller } from "../../src/sync/notion-poller.js";
 
+function createMockNotion(callImpl: any) {
+  return {
+    call: typeof callImpl === "function" ? vi.fn(callImpl) : vi.fn().mockResolvedValue(callImpl),
+    resolveDataSourceId: vi.fn().mockResolvedValue("ds-123"),
+    raw: { dataSources: { query: vi.fn() } },
+  };
+}
+
 describe("NotionPoller", () => {
   it("should detect pages updated after last sync", async () => {
-    const mockNotion = {
-      call: vi.fn().mockResolvedValue({
-        results: [
-          {
-            id: "page-1",
-            last_edited_time: "2026-02-15T10:00:00Z",
-            properties: { Name: { title: [{ plain_text: "Test Doc" }] } },
-          },
-        ],
-        has_more: false,
-      }),
-      raw: {
-        databases: {
-          query: vi.fn(),
+    const mockNotion = createMockNotion({
+      results: [
+        {
+          id: "page-1",
+          last_edited_time: "2026-02-15T10:00:00Z",
+          properties: { Name: { title: [{ plain_text: "Test Doc" }] } },
         },
-      },
-    };
+      ],
+      has_more: false,
+    });
 
     const poller = new NotionPoller(mockNotion as any);
     const changes = await poller.pollDatabase("db-123", new Date("2026-02-15T09:00:00Z"));
@@ -29,10 +30,7 @@ describe("NotionPoller", () => {
   });
 
   it("should return empty array when no changes", async () => {
-    const mockNotion = {
-      call: vi.fn().mockResolvedValue({ results: [], has_more: false }),
-      raw: { databases: { query: vi.fn() } },
-    };
+    const mockNotion = createMockNotion({ results: [], has_more: false });
 
     const poller = new NotionPoller(mockNotion as any);
     const changes = await poller.pollDatabase("db-123", new Date());
@@ -59,7 +57,8 @@ describe("NotionPoller", () => {
           }],
           has_more: false,
         }),
-      raw: { databases: { query: vi.fn() } },
+      resolveDataSourceId: vi.fn().mockResolvedValue("ds-123"),
+      raw: { dataSources: { query: vi.fn() } },
     };
 
     const poller = new NotionPoller(mockNotion as any);
@@ -68,7 +67,6 @@ describe("NotionPoller", () => {
   });
 
   it("should respect MAX_PAGES limit", async () => {
-    // Create a mock that always says has_more=true to test pagination limit
     let callCount = 0;
     const mockNotion = {
       call: vi.fn().mockImplementation(async () => {
@@ -83,7 +81,8 @@ describe("NotionPoller", () => {
           next_cursor: `cursor-${callCount}`,
         };
       }),
-      raw: { databases: { query: vi.fn() } },
+      resolveDataSourceId: vi.fn().mockResolvedValue("ds-123"),
+      raw: { dataSources: { query: vi.fn() } },
     };
 
     const poller = new NotionPoller(mockNotion as any);
