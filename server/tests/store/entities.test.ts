@@ -15,6 +15,9 @@ import {
   gcOrphanedBaseContent,
   hashContent,
   updateEntityAfterSync,
+  markConflict,
+  clearConflict,
+  listConflicts,
 } from "../../src/store/entities.js";
 import type { DB } from "../../src/store/db.js";
 import type Database from "better-sqlite3";
@@ -160,6 +163,105 @@ describe("Entity Store", () => {
     const gcCount = gcOrphanedBaseContent(db);
     expect(gcCount).toBe(1);
     expect(getBaseContent(db, bc.id)).toBeUndefined();
+  });
+
+  describe("conflict tracking", () => {
+    it("should have conflict columns after migration", () => {
+      const info = sqlite.prepare("PRAGMA table_info(entity_map)").all() as { name: string }[];
+      const columns = info.map((c) => c.name);
+      expect(columns).toContain("conflict_detected_at");
+      expect(columns).toContain("conflict_local_content_id");
+      expect(columns).toContain("conflict_notion_content_id");
+    });
+  });
+
+  describe("beads snapshot table", () => {
+    it("should have beads_snapshot table after migration", () => {
+      const tables = sqlite
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='beads_snapshot'")
+        .all() as { name: string }[];
+      expect(tables).toHaveLength(1);
+    });
+  });
+
+  describe("conflict operations", () => {
+    it("should mark an entity as conflicted", () => {
+      const entity = upsertEntity(db, {
+        localPath: "/test/file.md",
+        notionId: "notion-abc",
+        entityType: "doc",
+        tier: "T1",
+        lastLocalHash: null,
+        lastNotionHash: null,
+        lastNotionVer: null,
+        baseContentId: null,
+        lastSyncTs: new Date().toISOString(),
+      });
+      const localContentId = upsertBaseContent(db, "local version").id;
+      const notionContentId = upsertBaseContent(db, "notion version").id;
+
+      markConflict(db, entity.id, localContentId, notionContentId);
+
+      const found = getEntityByPath(db, "/test/file.md")!;
+      expect(found.conflictDetectedAt).toBeTruthy();
+      expect(found.conflictLocalContentId).toBe(localContentId);
+      expect(found.conflictNotionContentId).toBe(notionContentId);
+    });
+
+    it("should clear conflict state", () => {
+      const entity = upsertEntity(db, {
+        localPath: "/test/file.md",
+        notionId: "notion-abc",
+        entityType: "doc",
+        tier: "T1",
+        lastLocalHash: null,
+        lastNotionHash: null,
+        lastNotionVer: null,
+        baseContentId: null,
+        lastSyncTs: new Date().toISOString(),
+      });
+      const localId = upsertBaseContent(db, "local").id;
+      const notionId = upsertBaseContent(db, "notion").id;
+      markConflict(db, entity.id, localId, notionId);
+
+      clearConflict(db, entity.id);
+
+      const found = getEntityByPath(db, "/test/file.md")!;
+      expect(found.conflictDetectedAt).toBeNull();
+      expect(found.conflictLocalContentId).toBeNull();
+      expect(found.conflictNotionContentId).toBeNull();
+    });
+
+    it("should list conflicted entities", () => {
+      const e1 = upsertEntity(db, {
+        localPath: "/a.md",
+        notionId: "notion-a",
+        entityType: "doc",
+        tier: "T1",
+        lastLocalHash: null,
+        lastNotionHash: null,
+        lastNotionVer: null,
+        baseContentId: null,
+        lastSyncTs: new Date().toISOString(),
+      });
+      upsertEntity(db, {
+        localPath: "/b.md",
+        notionId: "notion-b",
+        entityType: "doc",
+        tier: "T1",
+        lastLocalHash: null,
+        lastNotionHash: null,
+        lastNotionVer: null,
+        baseContentId: null,
+        lastSyncTs: new Date().toISOString(),
+      });
+      const contentId = upsertBaseContent(db, "content").id;
+      markConflict(db, e1.id, contentId, contentId);
+
+      const conflicts = listConflicts(db);
+      expect(conflicts).toHaveLength(1);
+      expect(conflicts[0].id).toBe(e1.id);
+    });
   });
 
   it("updates entity after sync", () => {

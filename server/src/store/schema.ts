@@ -19,6 +19,9 @@ export const entityMap = sqliteTable("entity_map", {
   lastNotionVer: text("last_notion_ver"), // Notion last_edited_time for fast-path
   baseContentId: integer("base_content_id").references(() => baseContent.id),
   lastSyncTs: text("last_sync_ts").notNull(),
+  conflictDetectedAt: text("conflict_detected_at"),
+  conflictLocalContentId: integer("conflict_local_content_id").references(() => baseContent.id),
+  conflictNotionContentId: integer("conflict_notion_content_id").references(() => baseContent.id),
   deleted: integer("deleted", { mode: "boolean" }).notNull().default(false),
   deletedAt: text("deleted_at"),
   createdAt: text("created_at")

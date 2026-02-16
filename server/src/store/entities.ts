@@ -173,6 +173,70 @@ export function updateDocTier(
 }
 
 /**
+ * Mark an entity as having a conflict between local and Notion versions.
+ */
+export function markConflict(
+  db: DB,
+  entityId: number,
+  localContentId: number,
+  notionContentId: number,
+): void {
+  db.update(entityMap)
+    .set({
+      conflictDetectedAt: new Date().toISOString(),
+      conflictLocalContentId: localContentId,
+      conflictNotionContentId: notionContentId,
+    })
+    .where(eq(entityMap.id, entityId))
+    .run();
+}
+
+/**
+ * Clear conflict state from an entity (after resolution).
+ */
+export function clearConflict(db: DB, entityId: number): void {
+  db.update(entityMap)
+    .set({
+      conflictDetectedAt: null,
+      conflictLocalContentId: null,
+      conflictNotionContentId: null,
+    })
+    .where(eq(entityMap.id, entityId))
+    .run();
+}
+
+/**
+ * List all entities with unresolved conflicts.
+ * Joins base_content to include the actual content for each side.
+ * Note: Returns raw SQLite column names (snake_case), not Drizzle camelCase.
+ */
+export function listConflicts(db: DB): ConflictEntity[] {
+  return db.all(
+    sql`SELECT em.*, bc_local.content as local_content, bc_notion.content as notion_content
+        FROM entity_map em
+        LEFT JOIN base_content bc_local ON em.conflict_local_content_id = bc_local.id
+        LEFT JOIN base_content bc_notion ON em.conflict_notion_content_id = bc_notion.id
+        WHERE em.conflict_detected_at IS NOT NULL AND em.deleted = 0`,
+  ) as ConflictEntity[];
+}
+
+/** Raw result from listConflicts — uses snake_case column names from SQLite */
+export interface ConflictEntity {
+  id: number;
+  local_path: string;
+  notion_id: string;
+  entity_type: string;
+  tier: string | null;
+  last_local_hash: string | null;
+  last_notion_hash: string | null;
+  conflict_detected_at: string | null;
+  conflict_local_content_id: number | null;
+  conflict_notion_content_id: number | null;
+  local_content: string | null;
+  notion_content: string | null;
+}
+
+/**
  * Update entity hashes and sync timestamp after a successful sync.
  */
 export function updateEntityAfterSync(

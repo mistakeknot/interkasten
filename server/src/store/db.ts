@@ -104,6 +104,27 @@ export function openDatabase(dbPath?: string): { db: DB; sqlite: Database.Databa
   // Index for hierarchy lookups
   sqlite.exec("CREATE INDEX IF NOT EXISTS idx_entity_map_parent_id ON entity_map(parent_id)");
 
+  // Conflict tracking columns (v0.4.x — bidirectional sync)
+  if (!colNames.has("conflict_detected_at")) {
+    sqlite.exec("ALTER TABLE entity_map ADD COLUMN conflict_detected_at TEXT");
+    sqlite.exec(
+      "ALTER TABLE entity_map ADD COLUMN conflict_local_content_id INTEGER REFERENCES base_content(id)",
+    );
+    sqlite.exec(
+      "ALTER TABLE entity_map ADD COLUMN conflict_notion_content_id INTEGER REFERENCES base_content(id)",
+    );
+  }
+
+  // Beads snapshot table for issue sync state tracking (v0.4.x)
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS beads_snapshot (
+      project_id TEXT NOT NULL,
+      snapshot_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(project_id)
+    )
+  `);
+
   const db = drizzle(sqlite, { schema });
 
   return { db, sqlite };
