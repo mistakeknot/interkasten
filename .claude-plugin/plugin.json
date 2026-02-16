@@ -26,32 +26,14 @@
       "env": {}
     }
   },
-  "skills": {
-    "layout": {
-      "description": "Discover, organize, and register projects for Notion sync — interactive hierarchy and classification",
-      "path": "skills/layout/SKILL.md",
-      "user_invocable": true
-    },
-    "onboard": {
-      "description": "Classify projects, generate missing docs per tier, establish drift baselines, sync to Notion",
-      "path": "skills/onboard/SKILL.md",
-      "user_invocable": true
-    },
-    "doctor": {
-      "description": "Self-diagnosis — verify config, Notion token, MCP server, database, and sync health",
-      "path": "skills/doctor/SKILL.md",
-      "user_invocable": true
-    }
-  },
-  "commands": {
-    "onboard": {
-      "description": "Triage all projects, fill doc gaps, establish drift baselines, sync",
-      "path": "commands/onboard.md"
-    },
-    "doctor": {
-      "description": "Run interkasten self-diagnosis and health check",
-      "path": "commands/doctor.md"
-    }
-  },
-  "hooks": "hooks/hooks.json"
+  "skills": [
+    "./skills/layout/SKILL.md",
+    "./skills/onboard/SKILL.md",
+    "./skills/doctor/SKILL.md"
+  ],
+  "commands": [
+    "./commands/onboard.md",
+    "./commands/doctor.md"
+  ],
+  "hooks": "./hooks/hooks.json"
 }

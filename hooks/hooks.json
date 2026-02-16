@@ -12,9 +12,9 @@
         ]
       }
     ],
-    "Notification": [
+    "SessionStart": [
       {
-        "matcher": "SessionStart",
+        "matcher": "",
         "hooks": [
           {
             "type": "command",
@@ -22,9 +22,11 @@
             "timeout": 5
           }
         ]
-      },
+      }
+    ],
+    "Stop": [
       {
-        "matcher": "Stop",
+        "matcher": "",
         "hooks": [
           {
             "type": "command",
