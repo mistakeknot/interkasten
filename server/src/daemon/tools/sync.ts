@@ -6,7 +6,7 @@ import type { SyncEngine } from "../../sync/engine.js";
 import { querySyncLog } from "../../store/sync-log.js";
 import { walQueryIncomplete } from "../../store/wal.js";
 import { listProjects, lookupByPath, getDocsForProject } from "../../sync/entity-map.js";
-import { listEntities } from "../../store/entities.js";
+import { listEntities, listConflicts } from "../../store/entities.js";
 
 /**
  * Register sync-related MCP tools.
@@ -26,8 +26,12 @@ export function registerSyncTools(
         .string()
         .optional()
         .describe("Project path or name. Omit for all projects."),
+      direction: z
+        .enum(["push", "pull", "both"])
+        .optional()
+        .describe("Sync direction (default: both)"),
     },
-    async ({ project }) => {
+    async ({ project, direction }) => {
       if (!ctx.db || !ctx.notion) {
         return {
           content: [
@@ -90,12 +94,23 @@ export function registerSyncTools(
         };
       }
 
-      // Sync all — just trigger queue processing
-      await engine.processQueue();
+      // Sync all
+      const dir = direction ?? "both";
+      const actions: string[] = [];
+
+      if (dir === "push" || dir === "both") {
+        await engine.processQueue();
+        actions.push("push");
+      }
+      if (dir === "pull" || dir === "both") {
+        await engine.pollNotionChanges();
+        await engine.processQueue(); // Process any enqueued pull ops
+        actions.push("pull");
+      }
 
       return {
         content: [
-          { type: "text" as const, text: "Sync cycle triggered for all projects." },
+          { type: "text" as const, text: `Sync cycle triggered (${actions.join(" + ")}) for all projects.` },
         ],
       };
     }
@@ -204,5 +219,42 @@ export function registerSyncTools(
         ],
       };
     }
+  );
+
+  server.tool(
+    "interkasten_conflicts",
+    "List files with unresolved sync conflicts",
+    {},
+    async () => {
+      if (!ctx.db) {
+        return {
+          content: [{ type: "text" as const, text: "Database not connected" }],
+          isError: true,
+        };
+      }
+
+      const conflicts = listConflicts(ctx.db);
+
+      if (conflicts.length === 0) {
+        return {
+          content: [{ type: "text" as const, text: "No unresolved conflicts." }],
+        };
+      }
+
+      const result = conflicts.map((c) => ({
+        entityId: c.id,
+        localPath: c.local_path,
+        notionId: c.notion_id,
+        detectedAt: c.conflict_detected_at,
+        localPreview: (c.local_content || "").slice(0, 200),
+        notionPreview: (c.notion_content || "").slice(0, 200),
+      }));
+
+      return {
+        content: [
+          { type: "text" as const, text: JSON.stringify(result, null, 2) },
+        ],
+      };
+    },
   );
 }
