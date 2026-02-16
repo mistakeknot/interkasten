@@ -1,10 +1,10 @@
 # Interkasten: Vision and Philosophy
 
-**Version:** 0.3.1
-**Date:** 2026-02-15
+**Version:** 0.4.0
+**Date:** 2026-02-16
 **Status:** Active
 
-Interkasten is a Notion sync and documentation triage plugin for Claude Code. It keeps project documentation, hierarchy, and status synchronized between local repositories and Notion with a small, agent-native interface.
+Interkasten is a bidirectional Notion sync plugin for Claude Code. It keeps project documentation, hierarchy, and status synchronized between local repositories and Notion with three-way merge conflict resolution, beads issue tracking, and an agent-native interface.
 
 ## What Interkasten Is
 
@@ -46,6 +46,17 @@ The MCP layer is intentionally low-level and explicit. Tools provide determinist
 
 Interkasten only hardcodes operational guardrails (for example, directory exclusions and safe defaults). Everything that changes project meaning—classification, required documentation, schema choices, sync selection—is delegated to agent logic and user confirmation.
 
+## Conflict Resolution
+
+When both local and Notion sides change, interkasten uses three-way merge via `node-diff3`:
+- Non-overlapping changes merge automatically
+- Overlapping conflicts use a configurable strategy: `three-way-merge` (default with local-wins fallback), `local-wins`, `notion-wins`, or `conflict-file`
+- Conflicts are tracked in the database and surfaced via `interkasten_conflicts`
+
+## Beads Integration
+
+Beads issues sync bidirectionally with Notion pages. The engine diffs local beads state against a stored snapshot, pushes new/modified issues to Notion, and can pull Notion-side status changes back to beads via `bd` CLI.
+
 ## End State
 
-Interkasten should feel like a living interface: Notion is still usable as a collaboration surface, and local files remain execution-critical. The plugin’s job is to keep both surfaces coherent and let agents turn coherence into action.
+Interkasten should feel like a living interface: Notion is still usable as a collaboration surface, and local files remain execution-critical. The plugin's job is to keep both surfaces coherent and let agents turn coherence into action.

@@ -6,7 +6,7 @@ Claude Code plugin + MCP server for bidirectional Notion sync with adaptive AI d
 
 ```bash
 cd server && npm install && npm run build
-npm test  # 79 tests
+npm test  # 130 tests (121 unit + 9 integration, integration skipped without INTERKASTEN_TEST_TOKEN)
 ```
 
 ## Architecture
@@ -15,8 +15,8 @@ npm test  # 79 tests
 server/src/
 ├── index.ts              # MCP entry point (startup sequence)
 ├── config/               # Zod schemas, YAML loader, defaults
-├── store/                # SQLite via Drizzle ORM (entity_map, base_content, sync_log, sync_wal)
-├── sync/                 # Watcher, queue, translator, engine, NotionClient, triage, entity-map
+├── store/                # SQLite via Drizzle ORM (entity_map, base_content, sync_log, sync_wal, beads_snapshot)
+├── sync/                 # Watcher, queue, translator, engine, NotionClient, NotionPoller, merge, beads-sync, triage, entity-map, linked-refs
 └── daemon/
     ├── context.ts        # Shared DaemonContext passed to all tools
     └── tools/            # MCP tool handlers
@@ -25,7 +25,8 @@ server/src/
         ├── version.ts    # Version info
         ├── init.ts       # Setup wizard + project discovery (DiscoveredProject tree)
         ├── projects.ts   # CRUD for projects (list, get, register, unregister, refresh key docs)
-        ├── sync.ts       # Sync trigger + status + log
+        ├── sync.ts       # Sync trigger + status + log (push, pull, both directions)
+        ├── issues.ts     # Beads ↔ Notion issue sync tool
         ├── triage.ts     # Legacy tier classification (prefer gather_signals)
         ├── signals.ts    # Raw filesystem/git signals + file scanning
         └── hierarchy.ts  # Scan preview, parent/tags CRUD, database property management
@@ -40,7 +41,7 @@ Tools expose raw signals and CRUD operations. Intelligence lives in Claude Code 
 - **No cascade logic** — `unregister_project` handles one entity; agent orchestrates
 - **No auto-file-selection** — `scan_files` lists files; agent + user pick what to sync
 
-## MCP Tools (19 registered)
+## MCP Tools (21 registered)
 
 | Tool | Description |
 |------|-------------|
@@ -60,9 +61,11 @@ Tools expose raw signals and CRUD operations. Intelligence lives in Claude Code 
 | `interkasten_set_project_parent` | Set/change project parent (with Notion relation) |
 | `interkasten_set_project_tags` | Set tags (with Notion multi-select) |
 | `interkasten_add_database_property` | Add property to Projects database (idempotent) |
-| `interkasten_sync` | Trigger sync (one project or all) |
+| `interkasten_sync` | Trigger sync: push, pull, or both directions |
 | `interkasten_sync_status` | Pending ops, errors, circuit breaker state |
 | `interkasten_sync_log` | Query sync history |
+| `interkasten_conflicts` | List unresolved merge conflicts with content previews |
+| `interkasten_list_issues` | List synced beads issues with Notion page IDs |
 | `interkasten_triage` | Legacy: hardcoded tier classification (prefer gather_signals) |
 
 ## Hierarchy
@@ -76,20 +79,25 @@ Tools expose raw signals and CRUD operations. Intelligence lives in Claude Code 
 
 ## Key Patterns
 
-- **WAL protocol**: pending → target_written → committed → delete (crash recovery)
+- **Bidirectional sync**: push (local → Notion) + pull (Notion → local) with 60s polling
+- **Three-way merge**: `node-diff3` with configurable conflict strategy (local-wins default fallback)
+- **WAL protocol**: pending → target_written → committed → delete (crash recovery, both directions)
 - **Circuit breaker**: closed → open (after N failures) → half-open → closed
 - **Content hashing**: SHA-256 of normalized markdown
+- **Soft-delete safety**: 30-day retention before GC (aligned with Notion trash)
+- **Beads sync**: Diff-based issue sync via `bd` CLI with snapshot tracking
+- **Path validation**: `resolve() + startsWith(projectDir + "/")` on all pull operations
 - **Doc containment**: `parent_id` FK queries (not path prefix `startsWith`)
 
 ## Skills
 
 - `/interkasten:layout` — Interactive project discovery, hierarchy, and registration
 - `/interkasten:onboard` — Classification, doc generation, drift baselines, sync
-- `/interkasten:doctor` — Self-diagnosis: config, token, MCP server, database, sync health
+- `/interkasten:interkasten-doctor` — Self-diagnosis: config, token, MCP server, database, sync health
 
 ## Hooks
 
-- **SessionStart** — Print brief status (project count, pending WAL) if interkasten is configured
+- **SessionStart** — Print brief status (project count, pending WAL, unresolved conflicts) if interkasten is configured
 - **Stop** — Warn if pending sync operations exist
 
 ## Config

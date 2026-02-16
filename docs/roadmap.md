@@ -1,7 +1,7 @@
 # Interkasten Roadmap
 
-**Version:** 0.3.1
-**Last updated:** 2026-02-15
+**Version:** 0.4.0
+**Last updated:** 2026-02-16
 **Vision:** [`docs/vision.md`](vision.md)
 **PRD:** [`docs/PRD.md`](PRD.md)
 
@@ -11,48 +11,57 @@
 
 Interkasten currently ships as:
 
-- 1 MCP server (`interkasten`) with project, sync, and diagnostics tools
-- 2 user-invocable skills: `layout`, `onboard`
-- 1 command: `onboard`
+- 1 MCP server (`interkasten`) with 21 tools for project lifecycle, bidirectional sync, conflicts, and issues
+- 3 user-invocable skills: `layout`, `onboard`, `interkasten-doctor`
+- Bidirectional Notion sync with three-way merge conflict resolution
+- Beads issue sync with diff-based state tracking
 - Local SQLite state + Notion integration + triage workflows
 
 ## What's Working
 
-- Project discovery and registration with explicit parent/tags support in registry model
+### v0.3.x (push sync)
+- Project discovery and registration with explicit parent/tags support
 - SQLite-backed mapping between local projects/files and Notion entities
+- Push sync: local file changes → Notion pages via WAL protocol
 - Tool-level triage signal capture via `interkasten_gather_signals`
 - File scanning and sync preview before mutation actions
-- Sync lifecycle tools: trigger, status, and sync log
-- Health and configuration tooling for operation visibility
+- Health, configuration, and sync log tooling
+- Circuit breaker + exponential backoff for Notion API resilience
+- 19 MCP tools, 3 skills, 2 hooks
 
-## What's Next (Roadmap Candidates)
+### v0.4.0 (bidirectional sync) — current
+- Pull sync: 60-second Notion polling detects remote changes, pulls to local files
+- Three-way merge via `node-diff3` with configurable conflict strategies
+- Conflict tracking in database with `interkasten_conflicts` tool
+- Beads ↔ Notion issue sync with snapshot-based diff detection
+- Soft-delete safety: 30-day GC retention aligned with Notion trash
+- T2 linked references: lightweight summary cards for secondary files
+- Path traversal prevention on all pull operations
+- 21 MCP tools, 130 tests (121 unit + 9 integration)
 
-### 0.3.1 stabilization and reliability
+## What's Next
 
-- Lock down recovery behavior for WAL/incomplete operations under process interruption
-- Improve sync edge-case handling when Notion schemas diverge from expected shape
-- Standardize output formats for status/log tools to reduce parsing ambiguity
+### v0.5.0: Webhooks + Real-Time Sync
+- Persistent webhook receiver (systemd service, tiny HTTP server + SQLite event queue)
+- Cloudflared tunnel for near-instant Notion change notifications
+- Polling demoted to safety net (fallback when webhooks miss events)
+- Sync happens between Claude Code sessions (receiver queues events, MCP server processes on startup)
 
-### 0.3.2 + 0.3.3: Triage depth and documentation cadence
+### v0.5.x: Operational Quality
+- Extract `ConflictResolver` class from engine (reduce god-object complexity)
+- Async beads CLI calls (replace `execFileSync` with `promisify(execFile)`)
+- Config schema validation for `conflict_strategy` and `poll_interval`
+- `.conflict` file accumulation prevention (watcher ignore patterns)
 
-- Expand triage signals to improve confidence without adding policy in the tool layer
-- Improve key-document generation prompts so doc scaffolding aligns with project maturity
-- Expand examples for hierarchy resolution and cross-project parenting flows
-
-### 0.4.0: Operational quality and team-ready workflows
-
-- Add stronger observability signals for drift and retry quality
-- Add ergonomics around project selection workflows (bulk operations + safer defaults)
-- Formalize error taxonomies so agents can auto-route failures (and humans can decide quickly)
-
-## Open Areas
-
-- Advanced conflict resolution policies for high-churn pages
-- More granular sync scopes (folder filters, policy packs per project)
-- Better onboarding defaults for mixed repository types and mono-repos
+### v0.6.0: Team-Ready Workflows
+- Multi-user conflict resolution with named merge strategies per project
+- Stronger observability signals for drift and retry quality
+- Bulk operations and safer defaults for project selection workflows
+- Formalized error taxonomies for agent auto-routing
 
 ## Not in Scope Right Now
 
 - Hardcoded documentation policy generation
 - Fully automatic triage or sync decisions without user review
 - Rewriting Notion as source-of-truth for local execution state
+- Pagent workflows (deferred, not cancelled — doc generation stays with interpath/interwatch)
