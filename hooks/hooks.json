@@ -1,21 +1,14 @@
 {
-  "description": "interkasten plugin hooks — Notion sync bridge",
   "hooks": {
-    "Setup": [
+    "SessionStart": [
       {
+        "matcher": "",
         "hooks": [
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/setup.sh\"",
             "timeout": 30
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "matcher": "",
-        "hooks": [
+          },
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-status.sh\"",
