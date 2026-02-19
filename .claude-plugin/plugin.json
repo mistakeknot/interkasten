@@ -27,13 +27,12 @@
     }
   },
   "skills": [
-    "./skills/layout/SKILL.md",
-    "./skills/onboard/SKILL.md",
-    "./skills/doctor/SKILL.md"
+    "./skills/layout",
+    "./skills/onboard",
+    "./skills/doctor"
   ],
   "commands": [
     "./commands/onboard.md",
     "./commands/doctor.md"
-  ],
-  "hooks": "./hooks/hooks.json"
+  ]
 }
