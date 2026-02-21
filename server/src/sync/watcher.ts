@@ -29,12 +29,21 @@ export class FileWatcher extends EventEmitter {
   constructor(options: WatcherOptions) {
     super();
     this.projectsDir = options.projectsDir;
-    this.debounceMs = options.debounceMs ?? 500;
+    this.debounceMs = options.debounceMs ?? 2000;
     this.ignorePatterns = options.ignorePatterns ?? [
       "*.swp",
       "*.tmp",
-      ".git/objects/**",
+      ".git/**",
       "node_modules/**",
+      ".mutagen/**",
+      ".mutagen-*",
+      "**/.claude/**",
+      "**/.codex/**",
+      "**/target/**",
+      "**/.venv/**",
+      "**/.next/**",
+      "**/dist/**",
+      "**/.turbo/**",
     ];
   }
 
@@ -46,10 +55,11 @@ export class FileWatcher extends EventEmitter {
       ignored: this.ignorePatterns,
       persistent: true,
       ignoreInitial: true,
-      depth: 10,
+      depth: 3,
+      usePolling: false,
       awaitWriteFinish: {
-        stabilityThreshold: 200,
-        pollInterval: 100,
+        stabilityThreshold: 1000,
+        pollInterval: 500,
       },
     });
 

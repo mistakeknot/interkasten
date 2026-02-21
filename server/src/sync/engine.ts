@@ -104,7 +104,7 @@ export class SyncEngine {
       this.processQueue().catch((err) => {
         console.error("Queue processing error:", err);
       });
-    }, 2000);
+    }, 10000);
 
     // Poll Notion for remote changes
     const pollIntervalMs = (this.config.sync?.poll_interval ?? 60) * 1000;

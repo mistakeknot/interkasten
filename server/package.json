@@ -1,6 +1,6 @@
 {
   "name": "interkasten-server",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "MCP server for interkasten — bidirectional Notion sync with adaptive AI documentation",
   "type": "module",
   "main": "dist/index.js",
