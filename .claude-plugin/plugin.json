@@ -34,5 +34,6 @@
   "commands": [
     "./commands/onboard.md",
     "./commands/doctor.md"
-  ]
+  ],
+  "hooks": "./hooks/hooks.json"
 }
