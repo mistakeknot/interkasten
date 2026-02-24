@@ -309,7 +309,7 @@ Returns:
       "signals": { "loc": 0, "md_count": 3, ... },
       "children": [
         {
-          "path": "/root/projects/Interverse/hub/clavain",
+          "path": "os/clavain",
           "markers": [".git", ".beads"],
           "signals": { "loc": 15000, "has_plugin_json": true, ... },
           "children": []
@@ -324,7 +324,7 @@ Returns:
     }
   ],
   "symlinks_skipped": [
-    { "link": "/root/projects/clavain", "target": "/root/projects/Interverse/hub/clavain" }
+    { "link": "/root/projects/clavain", "target": "os/clavain" }
   ]
 }
 ```

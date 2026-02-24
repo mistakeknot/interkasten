@@ -39,7 +39,7 @@ describe("Project Hierarchy", () => {
 
   it("registers a project with parent", () => {
     const parent = registerProject(db, "/projects/Interverse", "notion-parent");
-    const child = registerProject(db, "/projects/Interverse/hub/clavain", "notion-child", parent.id);
+    const child = registerProject(db, "/projects/Interverse/os/clavain", "notion-child", parent.id);
 
     expect(child.parentId).toBe(parent.id);
   });
@@ -47,7 +47,7 @@ describe("Project Hierarchy", () => {
   it("registers a project with tags", () => {
     const project = registerProject(
       db,
-      "/projects/Interverse/hub/clavain",
+      "/projects/Interverse/os/clavain",
       "notion-123",
       null,
       ["claude-plugin", "mcp-server"]
@@ -58,21 +58,21 @@ describe("Project Hierarchy", () => {
 
   it("gets direct children of a project", () => {
     const parent = registerProject(db, "/projects/Interverse", "notion-parent");
-    registerProject(db, "/projects/Interverse/hub/clavain", "notion-c1", parent.id);
+    registerProject(db, "/projects/Interverse/os/clavain", "notion-c1", parent.id);
     registerProject(db, "/projects/Interverse/plugins/interflux", "notion-c2", parent.id);
     registerProject(db, "/projects/standalone", "notion-standalone");
 
     const children = getProjectChildren(db, parent.id);
     expect(children).toHaveLength(2);
     expect(children.map((c) => c.localPath).sort()).toEqual([
-      "/projects/Interverse/hub/clavain",
+      "/projects/Interverse/os/clavain",
       "/projects/Interverse/plugins/interflux",
     ]);
   });
 
   it("gets parent of a project", () => {
     const parent = registerProject(db, "/projects/Interverse", "notion-parent");
-    const child = registerProject(db, "/projects/Interverse/hub/clavain", "notion-child", parent.id);
+    const child = registerProject(db, "/projects/Interverse/os/clavain", "notion-child", parent.id);
 
     const foundParent = getProjectParent(db, child.id);
     expect(foundParent).not.toBeNull();
@@ -124,7 +124,7 @@ describe("Project Hierarchy", () => {
 
   it("gets docs for a project without including subproject docs", () => {
     const parent = registerProject(db, "/projects/Interverse", "notion-parent");
-    const child = registerProject(db, "/projects/Interverse/hub/clavain", "notion-child", parent.id);
+    const child = registerProject(db, "/projects/Interverse/os/clavain", "notion-child", parent.id);
 
     // Doc belonging to parent project — set parent_id via raw SQL since registerDoc doesn't support it yet
     registerDoc(db, "/projects/Interverse/README.md", "notion-doc1");
@@ -134,10 +134,10 @@ describe("Project Hierarchy", () => {
     );
 
     // Doc belonging to child project
-    registerDoc(db, "/projects/Interverse/hub/clavain/CLAUDE.md", "notion-doc2");
+    registerDoc(db, "/projects/Interverse/os/clavain/CLAUDE.md", "notion-doc2");
     sqlite.prepare("UPDATE entity_map SET parent_id = ? WHERE local_path = ?").run(
       child.id,
-      "/projects/Interverse/hub/clavain/CLAUDE.md"
+      "/projects/Interverse/os/clavain/CLAUDE.md"
     );
 
     const parentDocs = getDocsForProject(db, parent.id);
@@ -146,12 +146,12 @@ describe("Project Hierarchy", () => {
 
     const childDocs = getDocsForProject(db, child.id);
     expect(childDocs).toHaveLength(1);
-    expect(childDocs[0]!.localPath).toBe("/projects/Interverse/hub/clavain/CLAUDE.md");
+    expect(childDocs[0]!.localPath).toBe("/projects/Interverse/os/clavain/CLAUDE.md");
   });
 
   it("lists top-level projects only", () => {
     const parent = registerProject(db, "/projects/Interverse", "notion-parent");
-    registerProject(db, "/projects/Interverse/hub/clavain", "notion-child", parent.id);
+    registerProject(db, "/projects/Interverse/os/clavain", "notion-child", parent.id);
     registerProject(db, "/projects/standalone", "notion-standalone");
 
     const topLevel = listTopLevelProjects(db);
@@ -227,10 +227,10 @@ describe("Project Discovery (scanner)", () => {
   });
 
   it("handles transparent intermediate directories", async () => {
-    // Interverse layout: monorepo/hub/clavain, monorepo/plugins/interflux
+    // Interverse layout: monorepo/os/clavain, monorepo/plugins/interflux
     makeProject("monorepo", [".beads"]);
     mkdirSync(join(tempDir, "monorepo/hub")); // no marker — transparent
-    makeProject("monorepo/hub/clavain", [".git", ".beads"]);
+    makeProject("monorepo/os/clavain", [".git", ".beads"]);
     mkdirSync(join(tempDir, "monorepo/plugins")); // no marker — transparent
     makeProject("monorepo/plugins/interflux", [".git", ".beads"]);
 
@@ -240,7 +240,7 @@ describe("Project Discovery (scanner)", () => {
     const mono = tree[0]!;
     expect(mono.children).toHaveLength(2);
     expect(mono.children.map((c) => c.path).sort()).toEqual([
-      join(tempDir, "monorepo/hub/clavain"),
+      join(tempDir, "monorepo/os/clavain"),
       join(tempDir, "monorepo/plugins/interflux"),
     ]);
   });

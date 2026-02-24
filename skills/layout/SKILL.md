@@ -23,7 +23,7 @@ Present the discovered tree to the user as a visual hierarchy:
 Found 14 projects:
 
 ~/projects/Interverse/          [.beads]
-  hub/clavain/                  [.git, .beads]  15,000 LOC  247 commits
+  os/clavain/                  [.git, .beads]  15,000 LOC  247 commits
   plugins/interflux/            [.git, .beads]   3,200 LOC   89 commits
   plugins/interkasten/          [.git, .beads]   4,500 LOC  156 commits
   plugins/intermute/            [.git, .beads]   2,100 LOC   63 commits
@@ -31,7 +31,7 @@ Found 14 projects:
 
 ~/projects/standalone-tool/     [.git]            800 LOC   12 commits
 
-Symlinks skipped: ~/projects/clavain → (duplicate of hub/clavain)
+Symlinks skipped: ~/projects/clavain → (duplicate of os/clavain)
 ```
 
 Ask: "Does this look right? Any projects missing or incorrectly grouped?"
