@@ -11,3 +11,5 @@ dist/
 
 # Claude Code runtime flags
 .claude/clodex-toggle.flag
+
+.beads/
