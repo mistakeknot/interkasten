@@ -27,7 +27,6 @@
     }
   },
   "skills": [
-    "./skills/layout",
     "./skills/onboard",
     "./skills/doctor"
   ],
