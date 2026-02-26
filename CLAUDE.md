@@ -11,62 +11,9 @@ npm test  # 130 tests (121 unit + 9 integration, integration skipped without INT
 
 ## Architecture
 
-```
-server/src/
-├── index.ts              # MCP entry point (startup sequence)
-├── config/               # Zod schemas, YAML loader, defaults
-├── store/                # SQLite via Drizzle ORM (entity_map, base_content, sync_log, sync_wal, beads_snapshot)
-├── sync/                 # Watcher, queue, translator, engine, NotionClient, NotionPoller, merge, beads-sync, triage, entity-map, linked-refs
-└── daemon/
-    ├── context.ts        # Shared DaemonContext passed to all tools
-    └── tools/            # MCP tool handlers
-        ├── health.ts     # Liveness probe
-        ├── config.ts     # Config get/set
-        ├── version.ts    # Version info
-        ├── init.ts       # Setup wizard + project discovery (DiscoveredProject tree)
-        ├── projects.ts   # CRUD for projects (list, get, register, unregister, refresh key docs)
-        ├── sync.ts       # Sync trigger + status + log (push, pull, both directions)
-        ├── issues.ts     # Beads ↔ Notion issue sync tool
-        ├── triage.ts     # Legacy tier classification (prefer gather_signals)
-        ├── signals.ts    # Raw filesystem/git signals + file scanning
-        └── hierarchy.ts  # Scan preview, parent/tags CRUD, database property management
-```
+TypeScript MCP server in `server/src/`: config (Zod), store (Drizzle/SQLite), sync engine (bidirectional with WAL), daemon tools (21 MCP handlers). See [AGENTS.md](./AGENTS.md) for full tool listing and source tree.
 
-## Agent-Native Design
-
-Tools expose raw signals and CRUD operations. Intelligence lives in Claude Code skills:
-
-- **No hardcoded classification** — `gather_signals` returns LOC, commits, markers; agent proposes tiers
-- **No hardcoded tag vocabulary** — `set_project_tags` accepts any strings
-- **No cascade logic** — `unregister_project` handles one entity; agent orchestrates
-- **No auto-file-selection** — `scan_files` lists files; agent + user pick what to sync
-
-## MCP Tools (21 registered)
-
-| Tool | Description |
-|------|-------------|
-| `interkasten_health` | Liveness probe: uptime, SQLite, Notion, circuit breaker, WAL |
-| `interkasten_config_get` | Read config (full or by key path) |
-| `interkasten_config_set` | Update config value |
-| `interkasten_version` | Daemon + schema version |
-| `interkasten_init` | First-time setup: validate token, create/find database |
-| `interkasten_list_projects` | List projects with hierarchy, tags, key doc status |
-| `interkasten_get_project` | Project detail: docs, parent, children, tags, key docs |
-| `interkasten_register_project` | Register project with agent-specified Notion properties |
-| `interkasten_unregister_project` | Stop tracking (soft-delete, preserves Notion pages) |
-| `interkasten_refresh_key_docs` | Update key doc URL columns in Notion |
-| `interkasten_gather_signals` | Raw filesystem/git signals for a project |
-| `interkasten_scan_files` | Scan project for files matching a pattern |
-| `interkasten_scan_preview` | Non-destructive tree discovery with signals (writes nothing) |
-| `interkasten_set_project_parent` | Set/change project parent (with Notion relation) |
-| `interkasten_set_project_tags` | Set tags (with Notion multi-select) |
-| `interkasten_add_database_property` | Add property to Projects database (idempotent) |
-| `interkasten_sync` | Trigger sync: push, pull, or both directions |
-| `interkasten_sync_status` | Pending ops, errors, circuit breaker state |
-| `interkasten_sync_log` | Query sync history |
-| `interkasten_conflicts` | List unresolved merge conflicts with content previews |
-| `interkasten_list_issues` | List synced beads issues with Notion page IDs |
-| `interkasten_triage` | Legacy: hardcoded tier classification (prefer gather_signals) |
+**Agent-native design:** Tools expose raw signals and CRUD. No hardcoded classification, tag vocabulary, cascade logic, or auto-file-selection — intelligence lives in skills.
 
 ## Hierarchy
 
