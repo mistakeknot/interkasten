@@ -91,9 +91,10 @@ Tools expose raw signals and CRUD operations. Intelligence lives in Claude Code 
 
 ## Skills
 
-- `/interkasten:layout` — Interactive project discovery, hierarchy, and registration
 - `/interkasten:onboard` — Classification, doc generation, drift baselines, sync
 - `/interkasten:interkasten-doctor` — Self-diagnosis: config, token, MCP server, database, sync health
+
+**Note:** Layout skill moved to the **intertree** plugin (`/intertree:layout`). Hierarchy MCP tools (`scan_preview`, `set_project_parent`, `set_project_tags`, `gather_signals`, `scan_files`) remain in interkasten for now (require DaemonContext).
 
 ## Hooks
 
