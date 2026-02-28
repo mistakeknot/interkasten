@@ -115,6 +115,20 @@ export function openDatabase(dbPath?: string): { db: DB; sqlite: Database.Databa
     );
   }
 
+  // Database schemas table for tracked databases (v0.5.x — database row sync)
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS database_schemas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      notion_database_id TEXT NOT NULL UNIQUE,
+      data_source_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      schema_json TEXT NOT NULL,
+      output_dir TEXT,
+      last_fetched_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
   // Beads snapshot table for issue sync state tracking (v0.4.x)
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS beads_snapshot (

@@ -30,10 +30,16 @@ import {
   markConflict,
   clearConflict,
   listEntities,
+  softDeleteEntity,
+  gcDeletedEntities,
 } from "../store/entities.js";
 import { walCreatePending, walMarkTargetWritten, walMarkCommitted, walDelete } from "../store/wal.js";
 import { appendSyncLog } from "../store/sync-log.js";
-import { lookupByPath, registerDoc, computeTier } from "./entity-map.js";
+import { lookupByPath, lookupByNotionId, registerDoc, computeTier, getRowsForDatabase } from "./entity-map.js";
+import { parseFrontmatter, stringifyFrontmatter } from "./frontmatter.js";
+import { frontmatterToProperties, rowToFrontmatter, sanitizeTitle } from "./databases.js";
+import type { DatabaseSchema } from "./discovery.js";
+import { getDatabaseSchema, listTrackedDatabases } from "../store/databases.js";
 import {
   fetchBeadsIssues,
   diffBeadsState,
@@ -43,7 +49,6 @@ import {
   type BeadsIssue,
 } from "./beads-sync.js";
 import { sql } from "drizzle-orm";
-import { softDeleteEntity, gcDeletedEntities } from "../store/entities.js";
 
 export interface SyncEngineOptions {
   config: Config;
@@ -227,6 +232,12 @@ export class SyncEngine {
       // Skip if content hasn't changed
       if (entity.lastLocalHash === currentHash) return;
 
+      // Database rows get special push handling (frontmatter → properties)
+      if (entity.entityType === "db_row") {
+        await this.pushDbRowUpdate(entity, content, currentHash);
+        return;
+      }
+
       // Push update to existing Notion page
       await this.pushUpdate(entity.id, entity.notionId, content, currentHash);
     } else {
@@ -345,14 +356,14 @@ export class SyncEngine {
       // Get all tracked entities that have a Notion page
       const entities = listEntities(this.db);
 
-      // Group entities by their Notion database ID (via project parent)
-      // For simplicity, poll at the entity level using last sync timestamp
+      // Poll non-db_row entities individually
       for (const entity of entities) {
         if (!entity.notionId || !entity.lastSyncTs) continue;
+        // Skip db_row entities — they are polled in batch via their database
+        if (entity.entityType === "db_row") continue;
 
         const since = new Date(entity.lastSyncTs);
 
-        // Check if this page was edited after our last sync
         try {
           const page: any = await this.notion.call(async () => {
             return this.notion.raw.pages.retrieve({ page_id: entity.notionId });
@@ -361,7 +372,6 @@ export class SyncEngine {
           const remoteEditTime = new Date(page.last_edited_time);
           if (remoteEditTime <= since) continue;
 
-          // Page was edited — enqueue a pull operation
           this.queue.enqueue({
             side: "notion",
             type: "page_updated",
@@ -369,7 +379,39 @@ export class SyncEngine {
             timestamp: remoteEditTime,
           });
         } catch {
-          // Skip pages we can't access (deleted, permission changed, etc.)
+          // Skip pages we can't access
+        }
+      }
+
+      // Batch poll tracked databases for row changes
+      const trackedDbs = listTrackedDatabases(this.db);
+      for (const dbSchema of trackedDbs) {
+        try {
+          const dbEntity = lookupByNotionId(this.db, dbSchema.notionDatabaseId);
+          if (!dbEntity) continue;
+
+          const trackedRows = getRowsForDatabase(this.db, dbEntity.id);
+          const oldestSync = trackedRows.reduce((oldest, r) => {
+            const ts = r.lastSyncTs ? new Date(r.lastSyncTs) : new Date(0);
+            return ts < oldest ? ts : oldest;
+          }, new Date());
+
+          // Poll via the poller's fast-path (last_edited_time filter)
+          const changes = await this.poller.pollDatabase(
+            dbSchema.notionDatabaseId,
+            oldestSync,
+          );
+
+          for (const change of changes) {
+            this.queue.enqueue({
+              side: "notion",
+              type: "page_updated",
+              entityKey: change.pageId,
+              timestamp: new Date(change.lastEdited),
+            });
+          }
+        } catch {
+          // Skip inaccessible databases
         }
       }
     } finally {
@@ -384,6 +426,23 @@ export class SyncEngine {
     const entity = getEntityByNotionId(this.db, op.entityKey);
     if (!entity) {
       // Untracked page — skip (don't auto-register, per PRD)
+      return;
+    }
+
+    // Database rows get special pull handling
+    if (entity.entityType === "db_row") {
+      const dbId = this.findDatabaseIdForRow(entity);
+      if (dbId) {
+        const schemaRow = getDatabaseSchema(this.db, dbId);
+        if (schemaRow) {
+          const schema: DatabaseSchema = {
+            id: schemaRow.notionDatabaseId,
+            title: schemaRow.title,
+            properties: JSON.parse(schemaRow.schemaJson),
+          };
+          await this.pullDbRow(entity, schema);
+        }
+      }
       return;
     }
 
@@ -626,6 +685,23 @@ export class SyncEngine {
   }
 
   /**
+   * Find the Notion database ID for a db_row entity (via its parent entity or frontmatter).
+   */
+  private findDatabaseIdForRow(entity: { localPath: string; parentId?: number | null }): string | null {
+    // Try reading notion_database_id from frontmatter
+    if (existsSync(entity.localPath)) {
+      try {
+        const content = readFileSync(entity.localPath, "utf-8");
+        const { data } = parseFrontmatter(content);
+        if (data.notion_database_id) return data.notion_database_id as string;
+      } catch {
+        // Fall through to parent lookup
+      }
+    }
+    return null;
+  }
+
+  /**
    * Force sync of a specific file (for manual trigger / hook notification).
    */
   async syncFile(filePath: string): Promise<void> {
@@ -748,6 +824,184 @@ export class SyncEngine {
     const retentionMs = 30 * 24 * 60 * 60 * 1000; // 30 days
     const cutoff = new Date(Date.now() - retentionMs).toISOString();
     return gcDeletedEntities(this.db, cutoff);
+  }
+
+  /**
+   * Push a database row update: parse frontmatter → update Notion properties + body.
+   */
+  private async pushDbRowUpdate(
+    entity: { id: number; notionId: string; localPath: string; entityType: string },
+    content: string,
+    localHash: string,
+  ): Promise<void> {
+    const { data, body } = parseFrontmatter(content);
+    const dbId = data.notion_database_id as string;
+    if (!dbId) {
+      appendSyncLog(this.db, {
+        entityMapId: entity.id,
+        operation: "error",
+        direction: "local_to_notion",
+        detail: { error: "Missing notion_database_id in frontmatter" },
+      });
+      return;
+    }
+
+    // Load schema
+    const schemaRow = getDatabaseSchema(this.db, dbId);
+    if (!schemaRow) {
+      appendSyncLog(this.db, {
+        entityMapId: entity.id,
+        operation: "error",
+        direction: "local_to_notion",
+        detail: { error: `No schema found for database ${dbId}` },
+      });
+      return;
+    }
+    const schema: DatabaseSchema = {
+      id: schemaRow.notionDatabaseId,
+      title: schemaRow.title,
+      properties: JSON.parse(schemaRow.schemaJson),
+    };
+
+    // 1. WAL: pending
+    const walEntry = walCreatePending(this.db, {
+      entityMapId: entity.id,
+      operation: "push",
+      newContent: content,
+    });
+
+    try {
+      // 2. Convert frontmatter to Notion properties
+      const properties = frontmatterToProperties(data, schema);
+
+      // 3. Update properties
+      await this.notion.call(async () => {
+        await this.notion.raw.pages.update({
+          page_id: entity.notionId,
+          properties: properties as any,
+        });
+      }, { pageId: entity.notionId });
+
+      // 4. Update body blocks (if body content exists)
+      if (body.trim()) {
+        const blocks = markdownToNotionBlocks(body);
+        await this.notion.call(async () => {
+          const existingBlocks = await this.notion.raw.blocks.children.list({
+            block_id: entity.notionId,
+            page_size: 100,
+          });
+          for (const block of existingBlocks.results) {
+            if ("id" in block) {
+              await this.notion.raw.blocks.delete({ block_id: block.id });
+            }
+          }
+          for (let i = 0; i < blocks.length; i += 100) {
+            const chunk = blocks.slice(i, i + 100);
+            await this.notion.raw.blocks.children.append({
+              block_id: entity.notionId,
+              children: chunk as any,
+            });
+          }
+        }, { pageId: entity.notionId });
+      }
+
+      // 5. WAL: target_written
+      walMarkTargetWritten(this.db, walEntry.id);
+
+      // 6. Update entity_map
+      const base = upsertBaseContent(this.db, content);
+      updateEntityAfterSync(this.db, entity.id, {
+        lastLocalHash: localHash,
+        lastNotionHash: localHash,
+        baseContentId: base.id,
+        lastSyncTs: new Date().toISOString(),
+      });
+
+      // 7. WAL: committed + cleanup
+      walMarkCommitted(this.db, walEntry.id);
+      walDelete(this.db, walEntry.id);
+
+      appendSyncLog(this.db, {
+        entityMapId: entity.id,
+        operation: "push",
+        direction: "local_to_notion",
+        detail: { hash: localHash, type: "db_row" },
+      });
+    } catch (err) {
+      appendSyncLog(this.db, {
+        entityMapId: entity.id,
+        operation: "error",
+        direction: "local_to_notion",
+        detail: { error: (err as Error).message, type: "db_row" },
+      });
+      throw err;
+    }
+  }
+
+  /**
+   * Pull a database row from Notion: fetch properties + blocks → write file with frontmatter.
+   */
+  async pullDbRow(
+    entity: { id: number; notionId: string; localPath: string },
+    schema: DatabaseSchema,
+  ): Promise<void> {
+    // Fetch the page (row)
+    const page: any = await this.notion.call(async () => {
+      return this.notion.raw.pages.retrieve({ page_id: entity.notionId });
+    });
+
+    // Build frontmatter from properties
+    const fm = rowToFrontmatter(page, schema);
+
+    // Fetch body blocks
+    let body = "";
+    try {
+      body = await notionBlocksToMarkdown(this.notion.raw, entity.notionId);
+    } catch {
+      // Some rows have no body — that's fine
+    }
+
+    const content = stringifyFrontmatter(fm as Record<string, unknown>, body);
+    const contentHash = hashContent(normalizeMarkdown(content));
+
+    // WAL-protected write
+    const walEntry = walCreatePending(this.db, {
+      entityMapId: entity.id,
+      operation: "pull",
+      newContent: content,
+    });
+
+    try {
+      writeFileSync(entity.localPath, content, "utf-8");
+      walMarkTargetWritten(this.db, walEntry.id);
+
+      const base = upsertBaseContent(this.db, content);
+      updateEntityAfterSync(this.db, entity.id, {
+        lastLocalHash: contentHash,
+        lastNotionHash: contentHash,
+        lastNotionVer: page.last_edited_time,
+        baseContentId: base.id,
+        lastSyncTs: new Date().toISOString(),
+      });
+
+      walMarkCommitted(this.db, walEntry.id);
+      walDelete(this.db, walEntry.id);
+
+      appendSyncLog(this.db, {
+        entityMapId: entity.id,
+        operation: "pull",
+        direction: "notion_to_local",
+        detail: { hash: contentHash, type: "db_row" },
+      });
+    } catch (err) {
+      appendSyncLog(this.db, {
+        entityMapId: entity.id,
+        operation: "error",
+        direction: "notion_to_local",
+        detail: { error: (err as Error).message, type: "db_row" },
+      });
+      throw err;
+    }
   }
 
   getStatus(): {

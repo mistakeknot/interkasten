@@ -9,7 +9,7 @@ import {
 } from "../store/entities.js";
 import { entityMap, type EntityMap } from "../store/schema.js";
 
-export type EntityType = "project" | "doc" | "ref" | "issues";
+export type EntityType = "project" | "doc" | "ref" | "issues" | "database" | "db_row";
 export type Tier = "T1" | "T2";
 
 /**
@@ -262,6 +262,84 @@ export function getDocsForProject(db: DB, projectId: number): EntityMap[] {
       and(
         eq(entityMap.parentId, projectId),
         eq(entityMap.entityType, "doc"),
+        eq(entityMap.deleted, false)
+      )
+    )
+    .all();
+}
+
+/**
+ * Register a database in the entity map.
+ */
+export function registerDatabase(
+  db: DB,
+  localPath: string,
+  notionId: string,
+  parentId?: number | null,
+): EntityMap {
+  const entity = upsertEntity(db, {
+    localPath,
+    notionId,
+    entityType: "database",
+    tier: null,
+    lastLocalHash: null,
+    lastNotionHash: null,
+    lastNotionVer: null,
+    baseContentId: null,
+    lastSyncTs: new Date().toISOString(),
+  });
+
+  if (parentId !== undefined) {
+    db.update(entityMap)
+      .set({ parentId })
+      .where(eq(entityMap.id, entity.id))
+      .run();
+    return db.select().from(entityMap).where(eq(entityMap.id, entity.id)).get()!;
+  }
+
+  return entity;
+}
+
+/**
+ * Register a database row in the entity map.
+ */
+export function registerDbRow(
+  db: DB,
+  localPath: string,
+  notionId: string,
+  databaseEntityId: number,
+): EntityMap {
+  const entity = upsertEntity(db, {
+    localPath,
+    notionId,
+    entityType: "db_row",
+    tier: null,
+    lastLocalHash: null,
+    lastNotionHash: null,
+    lastNotionVer: null,
+    baseContentId: null,
+    lastSyncTs: new Date().toISOString(),
+  });
+
+  db.update(entityMap)
+    .set({ parentId: databaseEntityId })
+    .where(eq(entityMap.id, entity.id))
+    .run();
+
+  return db.select().from(entityMap).where(eq(entityMap.id, entity.id)).get()!;
+}
+
+/**
+ * Get all row entities belonging to a database entity.
+ */
+export function getRowsForDatabase(db: DB, databaseEntityId: number): EntityMap[] {
+  return db
+    .select()
+    .from(entityMap)
+    .where(
+      and(
+        eq(entityMap.parentId, databaseEntityId),
+        eq(entityMap.entityType, "db_row"),
         eq(entityMap.deleted, false)
       )
     )

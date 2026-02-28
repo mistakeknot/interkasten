@@ -1,4 +1,8 @@
 import { Client } from "@notionhq/client";
+import type {
+  PageObjectResponse,
+  DataSourceObjectResponse,
+} from "@notionhq/client/build/src/api-endpoints.js";
 import PQueue from "p-queue";
 
 /**
@@ -316,6 +320,86 @@ export class NotionClient {
   private openCircuit(): void {
     this.circuitState = "open";
     this.circuitOpenedAt = new Date();
+  }
+
+  /**
+   * Search for all pages in the workspace (paginated).
+   */
+  async searchAllPages(): Promise<PageObjectResponse[]> {
+    const pages: PageObjectResponse[] = [];
+    let cursor: string | undefined;
+    do {
+      const response: any = await this.call(() =>
+        this.client.search({
+          filter: { value: "page", property: "object" },
+          start_cursor: cursor,
+          page_size: 100,
+        })
+      );
+      for (const result of response.results) {
+        if (result.object === "page" && "properties" in result) {
+          pages.push(result as PageObjectResponse);
+        }
+      }
+      cursor = response.has_more ? response.next_cursor ?? undefined : undefined;
+    } while (cursor);
+    return pages;
+  }
+
+  /**
+   * Search for all data sources (databases) in the workspace (paginated).
+   */
+  async searchAllDataSources(): Promise<DataSourceObjectResponse[]> {
+    const dataSources: DataSourceObjectResponse[] = [];
+    let cursor: string | undefined;
+    do {
+      const response: any = await this.call(() =>
+        this.client.search({
+          filter: { value: "data_source", property: "object" },
+          start_cursor: cursor,
+          page_size: 100,
+        })
+      );
+      for (const result of response.results) {
+        if (result.object === "data_source" && "properties" in result) {
+          dataSources.push(result as DataSourceObjectResponse);
+        }
+      }
+      cursor = response.has_more ? response.next_cursor ?? undefined : undefined;
+    } while (cursor);
+    return dataSources;
+  }
+
+  /**
+   * Query all rows from a data source (paginated).
+   */
+  async queryDataSource(
+    dataSourceId: string,
+    filter?: unknown,
+    sorts?: unknown[]
+  ): Promise<PageObjectResponse[]> {
+    const rows: PageObjectResponse[] = [];
+    let cursor: string | undefined;
+    do {
+      const params: Record<string, unknown> = {
+        data_source_id: dataSourceId,
+        page_size: 100,
+      };
+      if (cursor) params.start_cursor = cursor;
+      if (filter) params.filter = filter;
+      if (sorts) params.sorts = sorts;
+
+      const response: any = await this.call(() =>
+        this.client.dataSources.query(params as any)
+      );
+      for (const result of response.results) {
+        if ("properties" in result) {
+          rows.push(result as PageObjectResponse);
+        }
+      }
+      cursor = response.has_more ? response.next_cursor ?? undefined : undefined;
+    } while (cursor);
+    return rows;
   }
 }
 

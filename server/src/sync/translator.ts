@@ -21,8 +21,26 @@ export async function notionBlocksToMarkdown(
   pageId: string
 ): Promise<string> {
   const n2m = new NotionToMarkdown({ notionClient });
-  const mdBlocks = await n2m.pageToMarkdown(pageId);
-  const mdString = n2m.toMarkdownString(mdBlocks);
+
+  // Suppress child_page and child_database blocks to prevent recursive fetching
+  n2m.setCustomTransformer("child_page", async () => "");
+  n2m.setCustomTransformer("child_database", async () => "");
+
+  let mdBlocks;
+  try {
+    mdBlocks = await n2m.pageToMarkdown(pageId);
+  } catch (err) {
+    console.error(`Failed to convert page ${pageId} to markdown:`, err);
+    return "";
+  }
+
+  let mdString;
+  try {
+    mdString = n2m.toMarkdownString(mdBlocks);
+  } catch (err) {
+    console.error(`Failed to stringify markdown for page ${pageId}:`, err);
+    return "";
+  }
 
   // notion-to-md returns { parent: string } in newer versions
   const raw = typeof mdString === "string" ? mdString : mdString.parent;

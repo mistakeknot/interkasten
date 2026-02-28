@@ -78,7 +78,26 @@ export const syncWal = sqliteTable("sync_wal", {
   completedAt: text("completed_at"),
 });
 
+/**
+ * Stores Notion database schemas for tracked databases.
+ * Used to convert between frontmatter keys and Notion property names/types.
+ */
+export const databaseSchemas = sqliteTable("database_schemas", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  notionDatabaseId: text("notion_database_id").notNull().unique(),
+  dataSourceId: text("data_source_id").notNull(),
+  title: text("title").notNull(),
+  schemaJson: text("schema_json").notNull(), // JSON-serialized DatabaseSchema.properties
+  outputDir: text("output_dir"), // local directory for row files
+  lastFetchedAt: text("last_fetched_at").notNull(),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+});
+
 // Type exports
+export type DatabaseSchemaRow = typeof databaseSchemas.$inferSelect;
+export type NewDatabaseSchemaRow = typeof databaseSchemas.$inferInsert;
 export type EntityMap = typeof entityMap.$inferSelect;
 export type NewEntityMap = typeof entityMap.$inferInsert;
 export type BaseContent = typeof baseContent.$inferSelect;
