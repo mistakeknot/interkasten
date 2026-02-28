@@ -19,7 +19,7 @@ Interkasten has three core layers:
 
 ## Why Notion-to-Local Sync Matters for Agents
 
-For agents working across many projects, local context becomes the source of truth for execution, but Notion often becomes the destination for planning and documentation. Interkasten removes that split by making Notion and local docs part of a single bidirectional information loop.
+Documentation is agent memory — persistent state across sessions, decision evidence, and the product interface (PHILOSOPHY.md). For agents working across many projects, local context becomes the source of truth for execution, but Notion often becomes the destination for planning and documentation. Interkasten removes that split by making Notion and local docs part of a single bidirectional information loop. The quality of docs directly determines the quality of agent output; interkasten's job is to keep that memory consistent across surfaces.
 
 This matters because agents can:
 
@@ -45,6 +45,10 @@ The MCP layer is intentionally low-level and explicit. Tools provide determinist
 ### Minimal hard rules, maximum observable behavior
 
 Interkasten only hardcodes operational guardrails (for example, directory exclusions and safe defaults). Everything that changes project meaning—classification, required documentation, schema choices, sync selection—is delegated to agent logic and user confirmation.
+
+### Every sync action produces a receipt
+
+WAL entries, operation history, and conflict records are durable evidence of what interkasten did and why (PHILOSOPHY.md: every action produces evidence). Sync operations that fail leave recoverable state, not silent corruption. This makes sync behavior auditable and replayable across sessions.
 
 ## Conflict Resolution
 
