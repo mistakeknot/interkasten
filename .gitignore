@@ -13,3 +13,4 @@ dist/
 .claude/clodex-toggle.flag
 
 .beads/
+__pycache__/
