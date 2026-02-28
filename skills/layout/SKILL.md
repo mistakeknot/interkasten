@@ -1,3 +1,7 @@
+---
+description: "Interactive Project Discovery & Layout"
+---
+
 # interkasten:layout — Interactive Project Discovery & Layout
 
 Guide the user through discovering, organizing, and registering their projects for Notion sync.

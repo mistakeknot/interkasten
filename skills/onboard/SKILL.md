@@ -1,3 +1,7 @@
+---
+description: "Project Onboarding & Doc Gap Fill"
+---
+
 # interkasten:onboard — Project Onboarding & Doc Gap Fill
 
 Orchestrate classification, doc generation, drift scanning, and sync for all registered projects.

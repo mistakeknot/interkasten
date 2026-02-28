@@ -1,3 +1,7 @@
+---
+description: "Triage all registered projects, generate missing docs, establish drift baselines, and sync to Notion."
+---
+
 # /interkasten:onboard
 
 Triage all registered projects, generate missing docs based on tier requirements, establish drift baselines, and sync to Notion.

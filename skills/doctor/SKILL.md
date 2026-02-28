@@ -1,3 +1,7 @@
+---
+description: "Self-Diagnosis & Health Check"
+---
+
 # interkasten:doctor — Self-Diagnosis & Health Check
 
 Run a cascading diagnostic checklist to verify interkasten is correctly installed and operating.
