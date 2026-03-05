@@ -19,12 +19,17 @@ Generate docs in dependency order — each doc builds on the prior ones:
    - Input: PRD, beads state, Vision
    - Skip if: Roadmap doc already exists
 
-4. **AGENTS.md** — comprehensive dev guide for AI agents
+4. **CUJs** — critical user journeys with typed success signals (optional)
+   - Invoke: `interpath:cuj`
+   - Input: PRD, Vision, beads state
+   - Skip if: CUJ docs already exist in `docs/cujs/`, or project has no clear user-facing flows
+
+5. **AGENTS.md** — comprehensive dev guide for AI agents
    - Invoke: `interdoc:interdoc`
    - Input: full project codebase analysis
    - Skip if: AGENTS.md already exists
 
-5. **CLAUDE.md** — minimal quick reference for Claude Code
+6. **CLAUDE.md** — minimal quick reference for Claude Code
    - Invoke: `interdoc:interdoc` with CLAUDE.md mode, or generate stub
    - Input: AGENTS.md content for condensation
    - Skip if: CLAUDE.md already exists
