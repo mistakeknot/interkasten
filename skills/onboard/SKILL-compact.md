@@ -8,11 +8,13 @@ Orchestrate classification, doc generation, drift scanning, and sync for all reg
 
 ## Prerequisites
 
-interkasten MCP running, Notion token set, projects registered (run `/interkasten:layout` first if none).
+interkasten MCP running, Notion token set. Full setup needs projects registered; single-page link needs nothing.
 
 ## Workflow
 
-1. **Check layout** — `interkasten_list_projects`. If none registered, redirect to `/interkasten:layout`.
+1. **Setup check** — `interkasten_list_projects`. If none registered, offer two paths:
+   - **Full workspace setup**: redirect to `/interkasten:layout`
+   - **Link a single page**: ask for Notion URL + local dir, call `interkasten_link`, skip to sync
 2. **Classify** — For projects without doc_tier: `interkasten_gather_signals`, propose tier:
    - **Product** (>1000 LOC, active): Vision, PRD, Roadmap, AGENTS.md, CLAUDE.md
    - **Tool** (moderate): AGENTS.md + CLAUDE.md

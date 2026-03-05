@@ -14,6 +14,11 @@ Triage all registered projects, generate missing docs based on tier requirements
 
 ## What It Does
 
+If no projects are registered, offers two paths:
+- **Full workspace setup** — Scan all projects, organize hierarchy, register with Notion (via `/interkasten:layout`)
+- **Link a single page** — Connect one Notion page to a local folder for sync (no full init needed)
+
+For registered projects:
 1. **Triage** — Classifies projects as Product, Tool, or Inactive based on signals (LOC, git history, manifests)
 2. **Generate** — Creates missing required docs per tier (Vision, PRD, Roadmap for Product; AGENTS.md, CLAUDE.md for Tool)
 3. **Watch** — Establishes drift baselines with interwatch

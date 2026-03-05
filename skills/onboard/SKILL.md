@@ -12,16 +12,27 @@ Use when: user says "onboard projects", "fill doc gaps", "generate docs for my p
 
 ## Prerequisites
 
-- interkasten MCP server running (tools available: `interkasten_gather_signals`, `interkasten_list_projects`, `interkasten_sync`, `interkasten_scan_files`)
+- interkasten MCP server running (tools available: `interkasten_gather_signals`, `interkasten_list_projects`, `interkasten_sync`, `interkasten_scan_files`, `interkasten_link`)
 - Notion token set (`INTERKASTEN_NOTION_TOKEN`)
-- Projects registered (run `/interkasten:layout` first if no projects exist)
+- For full workspace onboarding: projects registered (run `/interkasten:layout` first if no projects exist)
+- For single-page link: no prior setup needed — just a Notion page URL and a local directory
 
 ## Workflow
 
-### Phase 0: Check Layout
+### Phase 0: Setup Check
 
 1. Call `interkasten_list_projects`
-2. If no projects are registered, tell the user: "No projects registered yet. Run `/interkasten:layout` first to discover and organize your projects."
+2. If no projects are registered, present the user with options:
+   ```
+   No projects registered yet. How would you like to get started?
+
+   1. **Full workspace setup** — Discover all projects, organize hierarchy, register with Notion
+      (Run `/interkasten:layout` to scan your projects directory)
+   2. **Link a single page** — Connect one Notion page to a local folder for sync
+      (Lightweight — no full init needed)
+   ```
+   - If user chooses option 1: redirect to `/interkasten:layout`
+   - If user chooses option 2: ask for the Notion page URL and local directory, then call `interkasten_link(notion_page, local_dir)`. After linking, ask if they want to sync child pages too (`sync_children=true`). Then skip to Phase 4 (Sync & Report) with just the linked project.
 3. If projects exist, continue to Phase 1.
 
 ### Phase 1: Classification
