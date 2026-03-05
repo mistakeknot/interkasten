@@ -1,6 +1,6 @@
 {
   "name": "interkasten",
-  "version": "0.4.8",
+  "version": "0.4.9",
   "description": "Living bridge between your projects folder and Notion — bidirectional sync with adaptive AI documentation and pagent workflow automation",
   "author": {
     "name": "mistakeknot",
