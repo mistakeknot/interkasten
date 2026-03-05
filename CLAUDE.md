@@ -11,7 +11,7 @@ npm test  # 130 tests (121 unit + 9 integration, integration skipped without INT
 
 ## Architecture
 
-TypeScript MCP server in `server/src/`: config (Zod), store (Drizzle/SQLite), sync engine (bidirectional with WAL), daemon tools (21 MCP handlers). See [AGENTS.md](./AGENTS.md) for full tool listing and source tree.
+TypeScript MCP server in `server/src/`: config (Zod), store (Drizzle/SQLite), sync engine (bidirectional with WAL), daemon tools (22 MCP handlers). See [AGENTS.md](./AGENTS.md) for full tool listing and source tree.
 
 **Agent-native design:** Tools expose raw signals and CRUD. No hardcoded classification, tag vocabulary, cascade logic, or auto-file-selection — intelligence lives in skills.
 

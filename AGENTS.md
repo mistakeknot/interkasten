@@ -172,6 +172,7 @@ Snapshot of beads issue state for diff-based sync. Tracks last-known state to de
 | `interkasten_get_project` | Project detail: docs, parent, children, tags |
 | `interkasten_register_project` | Register project with agent-specified Notion properties |
 | `interkasten_unregister_project` | Stop tracking (soft-delete, preserves Notion pages) |
+| `interkasten_link` | Link a Notion page to a local directory — no full init required |
 | `interkasten_refresh_key_docs` | Update key doc URL columns in Notion |
 | `interkasten_add_database_property` | Add property to Projects database (idempotent) |
 
@@ -343,7 +344,7 @@ Run `/interkasten:interkasten-doctor` — checks config file, Notion token, MCP 
 
 ### Status (as of v0.4.0)
 - Phases 0-3 complete (scaffold, foundation, push sync, bidirectional sync)
-- 21 MCP tools, 130 tests, 3 skills, 2 hooks
+- 22 MCP tools, 229 tests, 3 skills, 2 hooks
 - @notionhq/client upgraded from v2 to v5 (data source model)
 - All 59 local beads closed (35 were flux-drive findings)
 - Next candidates: webhook receiver (P2, deferred to v0.5.x), interphase context integration (P2)
