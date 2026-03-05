@@ -28,10 +28,12 @@
   },
   "skills": [
     "./skills/onboard",
-    "./skills/doctor"
+    "./skills/doctor",
+    "./skills/webhook-setup"
   ],
   "commands": [
     "./commands/onboard.md",
-    "./commands/doctor.md"
+    "./commands/doctor.md",
+    "./commands/webhook-setup.md"
   ]
 }

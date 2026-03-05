@@ -4,10 +4,14 @@ import {
   discoverNotionWorkspace,
   renderTree,
   renderEntityTree,
+  buildDiscoveryScope,
 } from "../../sync/discovery.js";
 import { listEntities } from "../../store/entities.js";
 
-export function registerDiscoveryTools(server: McpServer, ctx: DaemonContext): void {
+export function registerDiscoveryTools(
+  server: McpServer,
+  ctx: DaemonContext,
+): void {
   /**
    * Enumerate the full Notion workspace as an ASCII tree.
    * Shows databases with schemas/row counts and tracked vs untracked status.
@@ -19,12 +23,25 @@ export function registerDiscoveryTools(server: McpServer, ctx: DaemonContext): v
     async () => {
       if (!ctx.notion) {
         return {
-          content: [{ type: "text" as const, text: "Notion client not initialized — set INTERKASTEN_NOTION_TOKEN" }],
+          content: [
+            {
+              type: "text" as const,
+              text: "Notion client not initialized — set INTERKASTEN_NOTION_TOKEN",
+            },
+          ],
           isError: true,
         };
       }
 
-      const result = await discoverNotionWorkspace(ctx.notion);
+      // Build scope from config if configured
+      const scopeRoots = ctx.config.sync?.scope_root_ids ?? [];
+      const scopeExcludes = ctx.config.sync?.scope_exclude_ids ?? [];
+      const scope =
+        scopeRoots.length > 0 || scopeExcludes.length > 0
+          ? buildDiscoveryScope(scopeRoots, scopeExcludes)
+          : undefined;
+
+      const result = await discoverNotionWorkspace(ctx.notion, scope);
 
       // Build tracked set for comparison
       const trackedNotionIds = new Set<string>();
@@ -42,7 +59,8 @@ export function registerDiscoveryTools(server: McpServer, ctx: DaemonContext): v
       const dbLines: string[] = [];
       for (const [dsId, info] of result.databases) {
         const tracked = trackedNotionIds.has(dsId) ? "TRACKED" : "untracked";
-        const rowLabel = info.rowCount === -1 ? "1+ rows" : `${info.rowCount} rows`;
+        const rowLabel =
+          info.rowCount === -1 ? "1+ rows" : `${info.rowCount} rows`;
         const propCount = Object.keys(info.schema.properties).length;
         dbLines.push(`  ${info.schema.title} (${dsId})`);
         dbLines.push(`    ${rowLabel}, ${propCount} properties, ${tracked}`);
@@ -53,8 +71,12 @@ export function registerDiscoveryTools(server: McpServer, ctx: DaemonContext): v
         }
       }
 
+      const scopeLabel = scope
+        ? `(filtered: ${scopeRoots.length} roots, ${scopeExcludes.length} excludes)`
+        : "(full workspace)";
+
       const output = [
-        "Notion Workspace Tree",
+        `Notion Workspace Tree ${scopeLabel}`,
         "=====================",
         treeStr || "(empty workspace)",
         "",
@@ -68,7 +90,7 @@ export function registerDiscoveryTools(server: McpServer, ctx: DaemonContext): v
       return {
         content: [{ type: "text" as const, text: output }],
       };
-    }
+    },
   );
 
   /**
@@ -81,7 +103,9 @@ export function registerDiscoveryTools(server: McpServer, ctx: DaemonContext): v
     async () => {
       if (!ctx.db) {
         return {
-          content: [{ type: "text" as const, text: "Database not initialized" }],
+          content: [
+            { type: "text" as const, text: "Database not initialized" },
+          ],
           isError: true,
         };
       }
@@ -90,6 +114,6 @@ export function registerDiscoveryTools(server: McpServer, ctx: DaemonContext): v
       return {
         content: [{ type: "text" as const, text: tree }],
       };
-    }
+    },
   );
 }

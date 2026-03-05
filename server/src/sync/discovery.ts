@@ -35,7 +35,149 @@ export interface DatabaseProperty {
 export interface DiscoveryResult {
   tree: PageNode[];
   flat: Map<string, PageNode>;
-  databases: Map<string, { ds: DataSourceObjectResponse; schema: DatabaseSchema; rowCount: number }>;
+  databases: Map<
+    string,
+    { ds: DataSourceObjectResponse; schema: DatabaseSchema; rowCount: number }
+  >;
+}
+
+export interface DiscoveryScope {
+  rootIds: Set<string>;
+  excludeIds: Set<string>;
+}
+
+// ---------- Scope filtering ----------
+
+/**
+ * Normalize a Notion ID by stripping hyphens and lowercasing.
+ */
+export function normalizeNotionId(id: string): string {
+  return id.replace(/-/g, "").toLowerCase();
+}
+
+/**
+ * Check if a scope is active (has any root or exclude IDs).
+ */
+export function hasDiscoveryScope(
+  scope: DiscoveryScope | undefined,
+): scope is DiscoveryScope {
+  if (!scope) return false;
+  return scope.rootIds.size > 0 || scope.excludeIds.size > 0;
+}
+
+/**
+ * Build a DiscoveryScope from raw config arrays.
+ */
+export function buildDiscoveryScope(
+  rootIds: string[],
+  excludeIds: string[],
+): DiscoveryScope {
+  return {
+    rootIds: new Set(rootIds.map(normalizeNotionId)),
+    excludeIds: new Set(excludeIds.map(normalizeNotionId)),
+  };
+}
+
+/**
+ * Walk up the parent chain and return true if any ancestor (including self)
+ * is in the target set. Uses memoization to avoid redundant walks.
+ */
+export function hasAncestorMatch(
+  id: string,
+  targetIds: Set<string>,
+  flat: Map<string, PageNode>,
+  memo: Map<string, boolean>,
+  visiting = new Set<string>(),
+): boolean {
+  const normId = normalizeNotionId(id);
+
+  if (targetIds.has(normId)) {
+    memo.set(normId, true);
+    return true;
+  }
+
+  const cached = memo.get(normId);
+  if (cached !== undefined) return cached;
+
+  // Cycle detection
+  if (visiting.has(normId)) return false;
+  visiting.add(normId);
+
+  const node = flat.get(id);
+  if (!node?.parentId) {
+    memo.set(normId, false);
+    return false;
+  }
+
+  const result = hasAncestorMatch(
+    node.parentId,
+    targetIds,
+    flat,
+    memo,
+    visiting,
+  );
+  memo.set(normId, result);
+  return result;
+}
+
+/**
+ * Filter a DiscoveryResult to only include pages within the configured scope.
+ *
+ * - If rootIds is non-empty, only pages with an ancestor in rootIds are kept.
+ * - If excludeIds is non-empty, pages with an ancestor in excludeIds are removed.
+ * - Both filters can be combined.
+ */
+export function applyDiscoveryScope(
+  discovery: DiscoveryResult,
+  scope: DiscoveryScope,
+): DiscoveryResult {
+  if (!hasDiscoveryScope(scope)) return discovery;
+
+  const rootMemo = new Map<string, boolean>();
+  const excludeMemo = new Map<string, boolean>();
+
+  const filteredFlat = new Map<string, PageNode>();
+
+  for (const [id, node] of discovery.flat) {
+    const isExcluded =
+      scope.excludeIds.size > 0 &&
+      hasAncestorMatch(id, scope.excludeIds, discovery.flat, excludeMemo);
+    if (isExcluded) continue;
+
+    const inScope =
+      scope.rootIds.size === 0 ||
+      hasAncestorMatch(id, scope.rootIds, discovery.flat, rootMemo);
+    if (!inScope) continue;
+
+    filteredFlat.set(id, node);
+  }
+
+  // Rebuild children lists to only reference in-scope nodes
+  for (const node of filteredFlat.values()) {
+    node.children = node.children.filter((c) => filteredFlat.has(c.id));
+  }
+
+  // Rebuild root tree
+  const tree: PageNode[] = [];
+  for (const node of filteredFlat.values()) {
+    if (
+      node.parentType === "workspace" ||
+      (node.parentId &&
+        !filteredFlat.has(node.parentId) &&
+        node.parentType !== "database")
+    ) {
+      tree.push(node);
+    }
+  }
+
+  sortTree(tree);
+
+  // Filter databases to only include in-scope ones
+  const filteredDbs = new Map(
+    [...discovery.databases].filter(([id]) => filteredFlat.has(id)),
+  );
+
+  return { tree, flat: filteredFlat, databases: filteredDbs };
 }
 
 // ---------- Schema extraction ----------
@@ -43,7 +185,9 @@ export interface DiscoveryResult {
 /**
  * Extract the property schema from a Notion data source.
  */
-export function extractDatabaseSchema(ds: DataSourceObjectResponse): DatabaseSchema {
+export function extractDatabaseSchema(
+  ds: DataSourceObjectResponse,
+): DatabaseSchema {
   const properties: Record<string, DatabaseProperty> = {};
   const dsProps = ds.properties as Record<string, any>;
 
@@ -79,7 +223,8 @@ export function extractDatabaseSchema(ds: DataSourceObjectResponse): DatabaseSch
  * Lightweight: fetches schemas and row counts per database, but NOT full row data.
  */
 export async function discoverNotionWorkspace(
-  notion: NotionClient
+  notion: NotionClient,
+  scope?: DiscoveryScope,
 ): Promise<DiscoveryResult> {
   const [pages, dataSources] = await Promise.all([
     notion.searchAllPages(),
@@ -87,7 +232,10 @@ export async function discoverNotionWorkspace(
   ]);
 
   const flat = new Map<string, PageNode>();
-  const dbMap = new Map<string, { ds: DataSourceObjectResponse; schema: DatabaseSchema; rowCount: number }>();
+  const dbMap = new Map<
+    string,
+    { ds: DataSourceObjectResponse; schema: DatabaseSchema; rowCount: number }
+  >();
 
   // Process data sources (databases) — schema + row count only
   for (const ds of dataSources) {
@@ -100,7 +248,7 @@ export async function discoverNotionWorkspace(
         notion.raw.dataSources.query({
           data_source_id: ds.id,
           page_size: 1,
-        } as any)
+        } as any),
       );
       // Notion doesn't return total count, but we can check has_more
       // For a rough count, we'll note 1+ rows exist
@@ -113,8 +261,12 @@ export async function discoverNotionWorkspace(
     dbMap.set(ds.id, { ds, schema, rowCount });
 
     const dsTitleParts = ds.title as any[];
-    const title = dsTitleParts?.map((t: any) => t.plain_text).join("") || "Untitled Database";
-    const parentInfo = resolveParent((ds as any).database_parent ?? (ds as any).parent);
+    const title =
+      dsTitleParts?.map((t: any) => t.plain_text).join("") ||
+      "Untitled Database";
+    const parentInfo = resolveParent(
+      (ds as any).database_parent ?? (ds as any).parent,
+    );
 
     const node: PageNode = {
       id: ds.id,
@@ -151,7 +303,11 @@ export async function discoverNotionWorkspace(
 
   // Build parent-child relationships for non-database pages
   for (const node of flat.values()) {
-    if (node.parentId && node.parentType !== "database" && flat.has(node.parentId)) {
+    if (
+      node.parentId &&
+      node.parentType !== "database" &&
+      flat.has(node.parentId)
+    ) {
       const parent = flat.get(node.parentId)!;
       if (!parent.children.find((c) => c.id === node.id)) {
         parent.children.push(node);
@@ -165,14 +321,23 @@ export async function discoverNotionWorkspace(
   for (const node of flat.values()) {
     if (
       node.parentType === "workspace" ||
-      (node.parentId && !flat.has(node.parentId) && node.parentType !== "database")
+      (node.parentId &&
+        !flat.has(node.parentId) &&
+        node.parentType !== "database")
     ) {
       tree.push(node);
     }
   }
 
   sortTree(tree);
-  return { tree, flat, databases: dbMap };
+  const result = { tree, flat, databases: dbMap };
+
+  // Apply scope filtering if configured
+  if (hasDiscoveryScope(scope)) {
+    return applyDiscoveryScope(result, scope);
+  }
+
+  return result;
 }
 
 // ---------- Tree rendering ----------
@@ -226,19 +391,29 @@ export function renderEntityTree(db: DB): string {
 
 // ---------- Helpers ----------
 
-function resolveParent(parent: any): { parentId: string | null; parentType: PageNode["parentType"] } {
+function resolveParent(parent: any): {
+  parentId: string | null;
+  parentType: PageNode["parentType"];
+} {
   if (!parent) return { parentId: null, parentType: "workspace" };
 
-  if (parent.type === "workspace") return { parentId: null, parentType: "workspace" };
-  if (parent.type === "page_id") return { parentId: parent.page_id, parentType: "page" };
-  if (parent.type === "database_id") return { parentId: parent.database_id, parentType: "database" };
-  if (parent.type === "block_id") return { parentId: parent.block_id, parentType: "block" };
+  if (parent.type === "workspace")
+    return { parentId: null, parentType: "workspace" };
+  if (parent.type === "page_id")
+    return { parentId: parent.page_id, parentType: "page" };
+  if (parent.type === "database_id")
+    return { parentId: parent.database_id, parentType: "database" };
+  if (parent.type === "block_id")
+    return { parentId: parent.block_id, parentType: "block" };
 
   // Direct property access fallback
   if (parent.page_id) return { parentId: parent.page_id, parentType: "page" };
-  if (parent.database_id) return { parentId: parent.database_id, parentType: "database" };
-  if (parent.block_id) return { parentId: parent.block_id, parentType: "block" };
-  if (parent.workspace === true) return { parentId: null, parentType: "workspace" };
+  if (parent.database_id)
+    return { parentId: parent.database_id, parentType: "database" };
+  if (parent.block_id)
+    return { parentId: parent.block_id, parentType: "block" };
+  if (parent.workspace === true)
+    return { parentId: null, parentType: "workspace" };
 
   return { parentId: null, parentType: "workspace" };
 }

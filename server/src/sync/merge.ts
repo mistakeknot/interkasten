@@ -13,7 +13,12 @@ export interface MergeResult {
   conflicts: ConflictRegion[];
 }
 
-export type ConflictStrategy = "local-wins" | "notion-wins" | "three-way-merge" | "conflict-file";
+export type ConflictStrategy =
+  | "local-wins"
+  | "notion-wins"
+  | "three-way-merge"
+  | "conflict-file"
+  | "artifact";
 
 /**
  * Three-way merge using node-diff3.

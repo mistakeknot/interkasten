@@ -1,11 +1,21 @@
-import { readFileSync, writeFileSync, existsSync } from "fs";
-import { resolve, relative, basename } from "path";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { resolve, basename, dirname, join } from "path";
 import type { DB } from "../store/db.js";
 import type { NotionClient } from "./notion-client.js";
 import type { Config } from "../config/schema.js";
 import type { FileChangeEvent } from "./watcher.js";
 import type { SyncOperation } from "./queue.js";
 import { SyncQueue } from "./queue.js";
+import { DurableQueue, type WorkItem } from "./durable-queue.js";
+import { localizeNotionAssetLinks } from "./assets.js";
+import {
+  isGitRepo,
+  getHead,
+  hasChanges,
+  commitAndPush,
+  changedFilesBetween,
+  pullFastForward,
+} from "./git-ops.js";
 import { FileWatcher } from "./watcher.js";
 import { NotionPoller, type PageChange } from "./notion-poller.js";
 import {
@@ -33,11 +43,26 @@ import {
   softDeleteEntity,
   gcDeletedEntities,
 } from "../store/entities.js";
-import { walCreatePending, walMarkTargetWritten, walMarkCommitted, walDelete } from "../store/wal.js";
+import {
+  walCreatePending,
+  walMarkTargetWritten,
+  walMarkCommitted,
+  walDelete,
+} from "../store/wal.js";
 import { appendSyncLog } from "../store/sync-log.js";
-import { lookupByPath, lookupByNotionId, registerDoc, computeTier, getRowsForDatabase } from "./entity-map.js";
+import {
+  lookupByPath,
+  lookupByNotionId,
+  registerDoc,
+  computeTier,
+  getRowsForDatabase,
+} from "./entity-map.js";
 import { parseFrontmatter, stringifyFrontmatter } from "./frontmatter.js";
-import { frontmatterToProperties, rowToFrontmatter, sanitizeTitle } from "./databases.js";
+import {
+  frontmatterToProperties,
+  rowToFrontmatter,
+  sanitizeTitle,
+} from "./databases.js";
 import type { DatabaseSchema } from "./discovery.js";
 import { getDatabaseSchema, listTrackedDatabases } from "../store/databases.js";
 import {
@@ -54,6 +79,7 @@ export interface SyncEngineOptions {
   config: Config;
   db: DB;
   notion: NotionClient;
+  durableQueue?: DurableQueue;
 }
 
 /**
@@ -67,20 +93,30 @@ export class SyncEngine {
   private config: Config;
   private watcher: FileWatcher | null = null;
   private queue: SyncQueue;
+  private durableQueue: DurableQueue | null;
   private processTimer: NodeJS.Timeout | null = null;
   private pollTimer: NodeJS.Timeout | null = null;
+  private gitTimer: NodeJS.Timeout | null = null;
+  private reconcileTimer: NodeJS.Timeout | null = null;
   private poller: NotionPoller;
   private pollInProgress = false;
+  private shadowMode: boolean;
+  private gitEnabled: boolean;
 
   constructor(options: SyncEngineOptions) {
     this.db = options.db;
     this.notion = options.notion;
     this.config = options.config;
+    this.shadowMode = options.config.sync.shadow_mode;
+    this.gitEnabled =
+      (options.config.sync.git?.enabled ?? false) &&
+      isGitRepo(options.config.projects_dir);
     this.poller = new NotionPoller(options.notion);
     this.queue = new SyncQueue({
       concurrency: 1,
       maxQueueSize: options.config.sync.max_queue_size,
     });
+    this.durableQueue = options.durableQueue ?? null;
   }
 
   /**
@@ -118,6 +154,28 @@ export class SyncEngine {
         console.error("Poll error:", err);
       });
     }, pollIntervalMs);
+
+    // Git scanning for committed changes
+    if (this.gitEnabled) {
+      const gitPollMs = this.config.sync.git?.poll_ms ?? 30000;
+      this.gitTimer = setInterval(() => {
+        this.scanGitForChanges().catch((err) => {
+          console.error("Git scan error:", err);
+        });
+      }, gitPollMs);
+
+      // Initialize git cursor
+      this.initGitCursor();
+    }
+
+    // Reconciliation timer: periodic full-sync safety net
+    if (this.durableQueue) {
+      const reconcileMs =
+        (this.config.sync.reconcile_interval_s ?? 21600) * 1000;
+      this.reconcileTimer = setInterval(() => {
+        this.enqueueReconcile();
+      }, reconcileMs);
+    }
   }
 
   /**
@@ -131,6 +189,14 @@ export class SyncEngine {
     if (this.pollTimer) {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
+    }
+    if (this.gitTimer) {
+      clearInterval(this.gitTimer);
+      this.gitTimer = null;
+    }
+    if (this.reconcileTimer) {
+      clearInterval(this.reconcileTimer);
+      this.reconcileTimer = null;
     }
     if (this.watcher) {
       await this.watcher.stop();
@@ -153,7 +219,12 @@ export class SyncEngine {
   private handleFileChange(event: FileChangeEvent): void {
     const op: SyncOperation = {
       side: "local",
-      type: event.type === "add" ? "file_added" : event.type === "change" ? "file_modified" : "file_removed",
+      type:
+        event.type === "add"
+          ? "file_added"
+          : event.type === "change"
+            ? "file_modified"
+            : "file_removed",
       entityKey: event.path,
       timestamp: event.timestamp,
     };
@@ -183,8 +254,25 @@ export class SyncEngine {
 
   /**
    * Process all pending operations in the queue.
+   *
+   * When a DurableQueue is configured:
+   * 1. Drain in-memory SyncQueue → enqueue into DurableQueue (deduped)
+   * 2. Claim batch from DurableQueue → process → markDone / markRetryOrDead
+   *
+   * Without a DurableQueue, falls back to the original in-memory drain-and-process.
    */
   async processQueue(): Promise<void> {
+    if (this.durableQueue) {
+      await this.processQueueDurable();
+    } else {
+      await this.processQueueLegacy();
+    }
+  }
+
+  /**
+   * Legacy queue processing: drain in-memory queue and process directly.
+   */
+  private async processQueueLegacy(): Promise<void> {
     const ops = this.queue.drain();
     for (const op of ops) {
       try {
@@ -197,13 +285,118 @@ export class SyncEngine {
         console.error(`Sync error for ${op.entityKey}:`, err);
         appendSyncLog(this.db, {
           operation: "error",
-          direction: op.side === "notion" ? "notion_to_local" : "local_to_notion",
+          direction:
+            op.side === "notion" ? "notion_to_local" : "local_to_notion",
           detail: {
             entityKey: op.entityKey,
             error: (err as Error).message,
           },
         });
       }
+    }
+  }
+
+  /**
+   * Durable queue processing: drain in-memory ops into DurableQueue,
+   * then claim and process a batch with retry/dead-letter handling.
+   */
+  private async processQueueDurable(): Promise<void> {
+    const dq = this.durableQueue!;
+
+    // 1. Flush in-memory queue into durable queue
+    const ops = this.queue.drain();
+    for (const op of ops) {
+      const isLocal = op.side === "local";
+      const entity = isLocal
+        ? getEntityByPath(this.db, op.entityKey)
+        : getEntityByNotionId(this.db, op.entityKey);
+
+      dq.enqueue({
+        kind: isLocal ? "local_entity_push" : "remote_entity_pull",
+        dedupeKey: `${op.side}:${op.entityKey}`,
+        payload: {
+          entityKey: op.entityKey,
+          type: op.type,
+          side: op.side,
+          notionId: isLocal ? entity?.notionId : op.entityKey,
+          localPath: isLocal ? op.entityKey : entity?.localPath,
+        },
+      });
+    }
+
+    // 2. Claim and process a batch from durable queue
+    const batchSize = this.config.sync.batch_size;
+    const items = dq.claimReady(batchSize);
+
+    for (const item of items) {
+      try {
+        await this.processWorkItem(item);
+        dq.markDone(item.id);
+      } catch (err) {
+        console.error(`Durable queue error for ${item.dedupeKey}:`, err);
+        dq.markRetryOrDead(item, err);
+        appendSyncLog(this.db, {
+          operation: "error",
+          detail: {
+            dedupeKey: item.dedupeKey,
+            kind: item.kind,
+            attempt: item.attempts + 1,
+            error: (err as Error).message,
+          },
+        });
+      }
+    }
+
+    // Auto-commit after processing batch if configured
+    await this.autoCommitIfNeeded();
+  }
+
+  /**
+   * Process a single work item from the durable queue.
+   * Dispatches to push/pull operations based on item kind.
+   */
+  private async processWorkItem(item: WorkItem): Promise<void> {
+    const payload = item.payload;
+
+    if (this.shadowMode) {
+      console.log(`[shadow] Would process ${item.kind}: ${item.dedupeKey}`);
+      return;
+    }
+
+    switch (item.kind) {
+      case "local_entity_push": {
+        const op: SyncOperation = {
+          side: "local",
+          type: (payload.type as SyncOperation["type"]) ?? "file_modified",
+          entityKey:
+            (payload.entityKey as string) ??
+            (payload.localPath as string) ??
+            "",
+          timestamp: new Date(),
+        };
+        await this.processPushOperation(op);
+        break;
+      }
+
+      case "remote_entity_pull": {
+        const op: SyncOperation = {
+          side: "notion",
+          type: (payload.type as SyncOperation["type"]) ?? "page_updated",
+          entityKey:
+            (payload.notionId as string) ?? (payload.entityKey as string) ?? "",
+          timestamp: new Date(),
+        };
+        await this.processPullOperation(op);
+        break;
+      }
+
+      case "reconcile_full":
+        await this.pollNotionChanges();
+        break;
+
+      case "beads_sync":
+        await this.pollBeadsChanges();
+        break;
     }
   }
 
@@ -254,7 +447,7 @@ export class SyncEngine {
     entityId: number,
     notionPageId: string,
     content: string,
-    localHash: string
+    localHash: string,
   ): Promise<void> {
     // 1. WAL: pending
     const walEntry = walCreatePending(this.db, {
@@ -287,11 +480,13 @@ export class SyncEngine {
             const chunk = blocks.slice(i, i + 100);
             await this.notion.raw.blocks.children.append({
               block_id: notionPageId,
-              children: chunk as Parameters<typeof this.notion.raw.blocks.children.append>[0]["children"],
+              children: chunk as Parameters<
+                typeof this.notion.raw.blocks.children.append
+              >[0]["children"],
             });
           }
         },
-        { pageId: notionPageId }
+        { pageId: notionPageId },
       );
 
       // 3. WAL: target_written
@@ -301,7 +496,10 @@ export class SyncEngine {
       let notionHash = localHash;
       let baseContentId: number | undefined;
       try {
-        const pulledBack = await notionBlocksToMarkdown(this.notion.raw, notionPageId);
+        const pulledBack = await notionBlocksToMarkdown(
+          this.notion.raw,
+          notionPageId,
+        );
         notionHash = hashContent(normalizeMarkdown(pulledBack));
         const base = upsertBaseContent(this.db, pulledBack);
         baseContentId = base.id;
@@ -372,12 +570,11 @@ export class SyncEngine {
           const remoteEditTime = new Date(page.last_edited_time);
           if (remoteEditTime <= since) continue;
 
-          this.queue.enqueue({
-            side: "notion",
-            type: "page_updated",
-            entityKey: entity.notionId,
-            timestamp: remoteEditTime,
-          });
+          this.enqueueRemotePull(
+            entity.notionId,
+            "page_updated",
+            remoteEditTime,
+          );
         } catch {
           // Skip pages we can't access
         }
@@ -403,12 +600,11 @@ export class SyncEngine {
           );
 
           for (const change of changes) {
-            this.queue.enqueue({
-              side: "notion",
-              type: "page_updated",
-              entityKey: change.pageId,
-              timestamp: new Date(change.lastEdited),
-            });
+            this.enqueueRemotePull(
+              change.pageId,
+              "page_updated",
+              new Date(change.lastEdited),
+            );
           }
         } catch {
           // Skip inaccessible databases
@@ -453,7 +649,10 @@ export class SyncEngine {
         entityMapId: entity.id,
         operation: "error",
         direction: "notion_to_local",
-        detail: { error: "No project directory found — aborting pull", path: entity.localPath },
+        detail: {
+          error: "No project directory found — aborting pull",
+          path: entity.localPath,
+        },
       });
       return;
     }
@@ -469,7 +668,10 @@ export class SyncEngine {
     }
 
     // Fetch content from Notion
-    const notionContent = await notionBlocksToMarkdown(this.notion.raw, entity.notionId);
+    const notionContent = await notionBlocksToMarkdown(
+      this.notion.raw,
+      entity.notionId,
+    );
     const notionHash = hashContent(normalizeMarkdown(notionContent));
 
     // Skip if Notion content hasn't actually changed (hash verification)
@@ -517,13 +719,36 @@ export class SyncEngine {
     });
 
     try {
-      // 2. Preserve local frontmatter
+      // 2. Localize Notion asset URLs (download images/attachments before they expire)
+      let localizedContent = notionContent;
+      if (this.config.sync.localize_assets) {
+        try {
+          const assetResult = await localizeNotionAssetLinks(
+            notionContent,
+            entity.localPath,
+          );
+          localizedContent = assetResult.markdown;
+          if (assetResult.downloaded > 0) {
+            console.log(
+              `Assets: downloaded ${assetResult.downloaded}, localized ${assetResult.localized} links for ${basename(entity.localPath)}`,
+            );
+          }
+        } catch (err) {
+          console.error(
+            `Asset localization failed for ${basename(entity.localPath)}:`,
+            (err as Error).message,
+          );
+          // Continue with original content — asset localization failure is non-fatal
+        }
+      }
+
+      // 3. Preserve local frontmatter
       const frontmatter = this.extractFrontmatter(currentLocalContent);
       const mergedContent = frontmatter
-        ? frontmatter + "\n" + notionContent
-        : notionContent;
+        ? frontmatter + "\n" + localizedContent
+        : localizedContent;
 
-      // 3. Write to local file
+      // 4. Write to local file
       writeFileSync(entity.localPath, mergedContent, "utf-8");
 
       // 4. WAL: target_written
@@ -572,11 +797,12 @@ export class SyncEngine {
     localContent: string,
     notionContent: string,
   ): Promise<void> {
-    const strategy = (this.config.sync?.conflict_strategy || "three-way-merge") as ConflictStrategy;
+    const strategy = (this.config.sync?.conflict_strategy ||
+      "three-way-merge") as ConflictStrategy;
 
     // Get base content for three-way merge
     const base = entity.baseContentId
-      ? getBaseContent(this.db, entity.baseContentId)?.content ?? ""
+      ? (getBaseContent(this.db, entity.baseContentId)?.content ?? "")
       : "";
 
     // Strip frontmatter from local for merge (frontmatter is local-only)
@@ -585,7 +811,11 @@ export class SyncEngine {
 
     if (strategy === "conflict-file") {
       const conflictPath = entity.localPath + ".conflict";
-      writeFileSync(conflictPath, formatConflictFile(localBody, notionContent, entity.localPath), "utf-8");
+      writeFileSync(
+        conflictPath,
+        formatConflictFile(localBody, notionContent, entity.localPath),
+        "utf-8",
+      );
       const localId = upsertBaseContent(this.db, localBody).id;
       const notionId = upsertBaseContent(this.db, notionContent).id;
       markConflict(this.db, entity.id, localId, notionId);
@@ -597,8 +827,27 @@ export class SyncEngine {
       return;
     }
 
+    if (strategy === "artifact") {
+      const artifactPath = this.writeConflictArtifact(
+        entity,
+        base,
+        localBody,
+        notionContent,
+      );
+      const localId = upsertBaseContent(this.db, localBody).id;
+      const notionId = upsertBaseContent(this.db, notionContent).id;
+      markConflict(this.db, entity.id, localId, notionId);
+      appendSyncLog(this.db, {
+        entityMapId: entity.id,
+        operation: "conflict",
+        detail: { strategy: "artifact", artifactPath },
+      });
+      return;
+    }
+
     // Three-way merge with configured fallback
-    const fallback: ConflictStrategy = strategy === "three-way-merge" ? "local-wins" : strategy;
+    const fallback: ConflictStrategy =
+      strategy === "three-way-merge" ? "local-wins" : strategy;
     const result = threeWayMerge(base, localBody, notionContent, fallback);
 
     if (result.hasConflicts) {
@@ -649,9 +898,65 @@ export class SyncEngine {
     walMarkCommitted(this.db, walEntry.id);
 
     // Push merged result to Notion (so both sides converge)
-    await this.pushUpdate(entity.id, entity.notionId, result.merged, notionHash);
+    await this.pushUpdate(
+      entity.id,
+      entity.notionId,
+      result.merged,
+      notionHash,
+    );
 
     walDelete(this.db, walEntry.id);
+  }
+
+  /**
+   * Write a structured conflict artifact file with base/local/remote sections.
+   * Stored in .notion-conflicts/ alongside the conflicting file.
+   * Returns the path of the artifact file.
+   */
+  private writeConflictArtifact(
+    entity: { localPath: string; notionId: string },
+    base: string,
+    localContent: string,
+    notionContent: string,
+  ): string {
+    const dir = join(dirname(entity.localPath), ".notion-conflicts");
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const title = basename(entity.localPath, ".md");
+    const shortId = entity.notionId.slice(0, 8);
+    const filename = `${timestamp}-${title}-${shortId}.md`;
+    const artifactPath = join(dir, filename);
+
+    const content = [
+      `# Conflict: ${title}`,
+      "",
+      `- **File:** \`${entity.localPath}\``,
+      `- **Notion ID:** \`${entity.notionId}\``,
+      `- **Detected:** ${new Date().toISOString()}`,
+      "",
+      "## Base (last synced)",
+      "",
+      "```markdown",
+      base || "(no base content — first sync)",
+      "```",
+      "",
+      "## Local (current file)",
+      "",
+      "```markdown",
+      localContent,
+      "```",
+      "",
+      "## Remote (current Notion)",
+      "",
+      "```markdown",
+      notionContent,
+      "```",
+      "",
+    ].join("\n");
+
+    writeFileSync(artifactPath, content, "utf-8");
+    return artifactPath;
   }
 
   /**
@@ -687,7 +992,10 @@ export class SyncEngine {
   /**
    * Find the Notion database ID for a db_row entity (via its parent entity or frontmatter).
    */
-  private findDatabaseIdForRow(entity: { localPath: string; parentId?: number | null }): string | null {
+  private findDatabaseIdForRow(entity: {
+    localPath: string;
+    parentId?: number | null;
+  }): string | null {
     // Try reading notion_database_id from frontmatter
     if (existsSync(entity.localPath)) {
       try {
@@ -736,9 +1044,8 @@ export class SyncEngine {
           sql`SELECT snapshot_json FROM beads_snapshot WHERE project_id = ${String(project.id)}`,
         ) as { snapshot_json: string }[];
 
-        const previous: BeadsIssue[] = prevRow.length > 0
-          ? JSON.parse(prevRow[0].snapshot_json)
-          : [];
+        const previous: BeadsIssue[] =
+          prevRow.length > 0 ? JSON.parse(prevRow[0].snapshot_json) : [];
 
         const diff = diffBeadsState(previous, current);
 
@@ -747,22 +1054,31 @@ export class SyncEngine {
           try {
             const props = mapBeadsToNotionProperties(issue);
             // Find existing Notion page for this issue or create new
-            const entity = getEntityByPath(this.db, `${project.localPath}/.beads/${issue.id}`);
+            const entity = getEntityByPath(
+              this.db,
+              `${project.localPath}/.beads/${issue.id}`,
+            );
 
             if (entity) {
               // Update existing
-              await this.notion.call(async () => {
-                await this.notion.raw.pages.update({
-                  page_id: entity.notionId,
-                  properties: props,
-                });
-              }, { pageId: entity.notionId });
+              await this.notion.call(
+                async () => {
+                  await this.notion.raw.pages.update({
+                    page_id: entity.notionId,
+                    properties: props,
+                  });
+                },
+                { pageId: entity.notionId },
+              );
             }
             // New issues: creation handled by beads integration tool, not auto-create here
           } catch (err) {
             appendSyncLog(this.db, {
               operation: "error",
-              detail: { error: `Beads push failed: ${(err as Error).message}`, issueId: issue.id },
+              detail: {
+                error: `Beads push failed: ${(err as Error).message}`,
+                issueId: issue.id,
+              },
             });
           }
         }
@@ -778,7 +1094,10 @@ export class SyncEngine {
       } catch (err) {
         appendSyncLog(this.db, {
           operation: "error",
-          detail: { error: `Beads poll failed: ${(err as Error).message}`, project: project.localPath },
+          detail: {
+            error: `Beads poll failed: ${(err as Error).message}`,
+            project: project.localPath,
+          },
         });
       }
     }
@@ -796,14 +1115,17 @@ export class SyncEngine {
 
     // Update Notion page status to indicate source was deleted
     try {
-      await this.notion.call(async () => {
-        await this.notion.raw.pages.update({
-          page_id: entity.notionId,
-          properties: {
-            Status: { select: { name: "⚠️ Source Deleted" } },
-          } as any,
-        });
-      }, { pageId: entity.notionId });
+      await this.notion.call(
+        async () => {
+          await this.notion.raw.pages.update({
+            page_id: entity.notionId,
+            properties: {
+              Status: { select: { name: "⚠️ Source Deleted" } },
+            } as any,
+          });
+        },
+        { pageId: entity.notionId },
+      );
     } catch {
       // Notion update failure is non-fatal for soft-delete
     }
@@ -830,7 +1152,12 @@ export class SyncEngine {
    * Push a database row update: parse frontmatter → update Notion properties + body.
    */
   private async pushDbRowUpdate(
-    entity: { id: number; notionId: string; localPath: string; entityType: string },
+    entity: {
+      id: number;
+      notionId: string;
+      localPath: string;
+      entityType: string;
+    },
     content: string,
     localHash: string,
   ): Promise<void> {
@@ -875,34 +1202,40 @@ export class SyncEngine {
       const properties = frontmatterToProperties(data, schema);
 
       // 3. Update properties
-      await this.notion.call(async () => {
-        await this.notion.raw.pages.update({
-          page_id: entity.notionId,
-          properties: properties as any,
-        });
-      }, { pageId: entity.notionId });
+      await this.notion.call(
+        async () => {
+          await this.notion.raw.pages.update({
+            page_id: entity.notionId,
+            properties: properties as any,
+          });
+        },
+        { pageId: entity.notionId },
+      );
 
       // 4. Update body blocks (if body content exists)
       if (body.trim()) {
         const blocks = markdownToNotionBlocks(body);
-        await this.notion.call(async () => {
-          const existingBlocks = await this.notion.raw.blocks.children.list({
-            block_id: entity.notionId,
-            page_size: 100,
-          });
-          for (const block of existingBlocks.results) {
-            if ("id" in block) {
-              await this.notion.raw.blocks.delete({ block_id: block.id });
-            }
-          }
-          for (let i = 0; i < blocks.length; i += 100) {
-            const chunk = blocks.slice(i, i + 100);
-            await this.notion.raw.blocks.children.append({
+        await this.notion.call(
+          async () => {
+            const existingBlocks = await this.notion.raw.blocks.children.list({
               block_id: entity.notionId,
-              children: chunk as any,
+              page_size: 100,
             });
-          }
-        }, { pageId: entity.notionId });
+            for (const block of existingBlocks.results) {
+              if ("id" in block) {
+                await this.notion.raw.blocks.delete({ block_id: block.id });
+              }
+            }
+            for (let i = 0; i < blocks.length; i += 100) {
+              const chunk = blocks.slice(i, i + 100);
+              await this.notion.raw.blocks.children.append({
+                block_id: entity.notionId,
+                children: chunk as any,
+              });
+            }
+          },
+          { pageId: entity.notionId },
+        );
       }
 
       // 5. WAL: target_written
@@ -961,6 +1294,19 @@ export class SyncEngine {
       // Some rows have no body — that's fine
     }
 
+    // Localize asset URLs in body
+    if (body && this.config.sync.localize_assets) {
+      try {
+        const assetResult = await localizeNotionAssetLinks(
+          body,
+          entity.localPath,
+        );
+        body = assetResult.markdown;
+      } catch {
+        // Non-fatal — continue with original URLs
+      }
+    }
+
     const content = stringifyFrontmatter(fm as Record<string, unknown>, body);
     const contentHash = hashContent(normalizeMarkdown(content));
 
@@ -1004,17 +1350,200 @@ export class SyncEngine {
     }
   }
 
+  /**
+   * Enqueue a remote pull operation, routing to DurableQueue when available.
+   */
+  private enqueueRemotePull(
+    notionId: string,
+    type: SyncOperation["type"],
+    timestamp: Date,
+  ): void {
+    if (this.durableQueue) {
+      this.durableQueue.enqueue({
+        kind: "remote_entity_pull",
+        dedupeKey: `notion:${notionId}`,
+        payload: { notionId, type, side: "notion" },
+      });
+    } else {
+      this.queue.enqueue({
+        side: "notion",
+        type,
+        entityKey: notionId,
+        timestamp,
+      });
+    }
+  }
+
+  // ---------- Git integration ----------
+
+  /**
+   * Initialize the git cursor to the current HEAD.
+   * Called once at startup when git is enabled.
+   */
+  private initGitCursor(): void {
+    if (!this.durableQueue) return;
+
+    const existing = this.durableQueue.getState("last_processed_git_commit");
+    if (existing) return;
+
+    try {
+      const head = getHead(this.config.projects_dir);
+      this.durableQueue.setState("last_processed_git_commit", head);
+    } catch {
+      // Not a git repo or no commits yet
+    }
+  }
+
+  /**
+   * Scan git for committed changes since the last processed commit.
+   * Enqueues local_entity_push work items for changed markdown files
+   * that have a notion_id in their frontmatter.
+   */
+  private async scanGitForChanges(): Promise<void> {
+    if (!this.gitEnabled || !this.durableQueue) return;
+
+    const gitConfig = this.config.sync.git;
+    const remote = gitConfig?.remote ?? "origin";
+    const branch = gitConfig?.branch ?? "main";
+    const workdir = this.config.projects_dir;
+
+    // Fast-forward pull to get latest remote changes
+    try {
+      pullFastForward(workdir, remote, branch);
+    } catch (err) {
+      console.error("git pull --ff-only failed:", err);
+      return;
+    }
+
+    const head = getHead(workdir);
+    const previousHead = this.durableQueue.getState(
+      "last_processed_git_commit",
+    );
+
+    if (!previousHead) {
+      this.durableQueue.setState("last_processed_git_commit", head);
+      return;
+    }
+
+    if (head === previousHead) return;
+
+    const changedFiles = changedFilesBetween(
+      workdir,
+      previousHead,
+      head,
+    ).filter((file) => file.endsWith(".md"));
+
+    for (const relPath of changedFiles) {
+      const absPath = join(workdir, relPath);
+      try {
+        const content = readFileSync(absPath, "utf-8");
+        const parsed = parseFrontmatter(content);
+        if (!parsed?.data?.notion_id) continue;
+
+        this.durableQueue.enqueue({
+          kind: "local_entity_push",
+          dedupeKey: `local:${parsed.data.notion_id}`,
+          payload: {
+            notionId: parsed.data.notion_id,
+            source: "git_commit",
+            localPath: relPath,
+          },
+        });
+      } catch {
+        // File might not exist (deleted in commit), skip
+      }
+    }
+
+    this.durableQueue.setState("last_processed_git_commit", head);
+  }
+
+  /**
+   * Auto-commit and push changes after webhook-triggered pulls.
+   * Only runs when git.auto_commit is enabled.
+   */
+  async autoCommitIfNeeded(): Promise<void> {
+    if (this.shadowMode) return;
+    if (!this.gitEnabled || !this.durableQueue) return;
+
+    const gitConfig = this.config.sync.git;
+    if (!gitConfig?.auto_commit) return;
+
+    const workdir = this.config.projects_dir;
+    if (!hasChanges(workdir)) return;
+
+    const message = `chore(interkasten): sync ${new Date().toISOString()}`;
+
+    try {
+      commitAndPush({
+        workdir,
+        remote: gitConfig.remote ?? "origin",
+        branch: gitConfig.branch ?? "main",
+        message,
+        authorName: gitConfig.author_name ?? "interkasten-bot",
+        authorEmail: gitConfig.author_email ?? "interkasten-bot@local",
+      });
+
+      const head = getHead(workdir);
+      this.durableQueue.setState("last_processed_git_commit", head);
+    } catch (err) {
+      console.error("Auto commit/push failed:", err);
+    }
+  }
+
+  // ---------- Reconciliation ----------
+
+  /**
+   * Enqueue a full reconciliation sync.
+   * Used by the periodic timer and webhook server when scope is unknown.
+   */
+  enqueueReconcile(source = "interval"): void {
+    if (!this.durableQueue) return;
+    this.durableQueue.enqueue({
+      kind: "reconcile_full",
+      dedupeKey: "reconcile:full",
+      payload: { source },
+    });
+  }
+
+  /**
+   * Get the durable queue instance (for external consumers like webhook server or MCP tools).
+   */
+  getDurableQueue(): DurableQueue | null {
+    return this.durableQueue;
+  }
+
   getStatus(): {
     pending: number;
     active: number;
     dropped: number;
     watcherActive: boolean;
+    shadowMode: boolean;
+    gitEnabled: boolean;
+    durableQueue: {
+      queued: number;
+      processing: number;
+      done: number;
+      dead: number;
+      deadLetters: number;
+    } | null;
   } {
+    const dqStats = this.durableQueue?.getStats() ?? null;
     return {
       pending: this.queue.size,
       active: this.queue.activeCount,
       dropped: this.queue.dropped,
       watcherActive: this.watcher !== null,
+      shadowMode: this.shadowMode,
+      gitEnabled: this.gitEnabled,
+      durableQueue: dqStats
+        ? {
+            queued: dqStats.queued,
+            processing: dqStats.processing,
+            done: dqStats.done,
+            dead: dqStats.dead,
+            deadLetters: dqStats.deadLetters,
+          }
+        : null,
     };
   }
 }

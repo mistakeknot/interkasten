@@ -47,14 +47,48 @@ export const SyncSchema = z.object({
   poll_interval: z.number().int().min(10).default(60),
   batch_size: z.number().int().min(1).default(10),
   max_queue_size: z.number().int().min(10).default(1000),
+  queue_db_path: z.string().default("~/.interkasten/queue.db"),
+  shadow_mode: z.boolean().default(false),
+  localize_assets: z.boolean().default(true),
   conflict_strategy: z
-    .enum(["three-way-merge", "local-wins", "notion-wins", "conflict-file", "ask"])
+    .enum(["three-way-merge", "local-wins", "notion-wins", "conflict-file", "artifact", "ask"])
     .default("three-way-merge"),
+  scope_root_ids: z.array(z.string()).default([]),
+  scope_exclude_ids: z.array(z.string()).default([]),
+  reconcile_interval_s: z.number().default(21600), // 6 hours
   backoff: BackoffSchema.default({}),
   tunnel: z
     .object({
       enabled: z.boolean().default(false),
       provider: z.string().default("cloudflared"),
+    })
+    .default({}),
+  webhook: z
+    .object({
+      enabled: z.boolean().default(false),
+      port: z.number().int().default(8787),
+      path: z.string().default("/webhooks/notion"),
+      secret: z.string().default(""),
+      batch_window_ms: z.number().int().default(60000),
+    })
+    .default({}),
+  cloud_bridge: z
+    .object({
+      url: z.string().nullable().default(null),
+      token: z.string().nullable().default(null),
+      poll_ms: z.number().int().default(5000),
+      batch_size: z.number().int().default(50),
+    })
+    .default({}),
+  git: z
+    .object({
+      enabled: z.boolean().default(false),
+      remote: z.string().default("origin"),
+      branch: z.string().default("main"),
+      poll_ms: z.number().int().default(30000),
+      auto_commit: z.boolean().default(true),
+      author_name: z.string().default("interkasten-bot"),
+      author_email: z.string().default("interkasten@localhost"),
     })
     .default({}),
 });
