@@ -19,10 +19,12 @@ Generate docs in dependency order — each doc builds on the prior ones:
    - Input: PRD, beads state, Vision
    - Skip if: Roadmap doc already exists
 
-4. **CUJs** — critical user journeys with typed success signals (optional)
+4. **CUJs** — critical user journeys with typed success signals
    - Invoke: `interpath:cuj`
    - Input: PRD, Vision, beads state
-   - Skip if: CUJ docs already exist in `docs/cujs/`, or project has no clear user-facing flows
+   - Skip if: CUJ docs already exist in `docs/cujs/`
+   - Required for: any project with user-facing flows (apps, CLIs, plugins with commands)
+   - Skip for: pure libraries, internal infrastructure
 
 5. **AGENTS.md** — comprehensive dev guide for AI agents
    - Invoke: `interdoc:interdoc`

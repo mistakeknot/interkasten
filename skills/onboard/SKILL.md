@@ -51,7 +51,7 @@ For each project, call `interkasten_scan_files(project, "**/*.md")` to see what 
 1. Vision.md (if missing) — via `interpath:vision`
 2. PRD.md (if missing) — via `interpath:prd`
 3. Roadmap.md (if missing) — via `interpath:roadmap`
-4. CUJs (optional, if missing) — via `interpath:cuj` for 1-2 key user journeys from PRD. Skip if no clear user-facing flows.
+4. CUJs (if missing) — via `interpath:cuj` for 1-2 key user journeys from PRD. Required for user-facing projects. Skip only for pure libraries/internal infra.
 5. AGENTS.md (if missing) — via `interdoc:interdoc`
 6. CLAUDE.md (if missing) — create stub with project name + quick start
 
