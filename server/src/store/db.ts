@@ -146,8 +146,10 @@ export function openDatabase(dbPath?: string): { db: DB; sqlite: Database.Databa
   const notionIdIndex = (sqlite.pragma("index_list(entity_map)") as Array<{ name: string; unique: number }>)
     .find((idx) => idx.name === "sqlite_autoindex_entity_map_2" && idx.unique === 1);
   if (notionIdIndex) {
+    // Drop entity_map_new if it exists from a previous failed migration attempt
+    sqlite.exec(`DROP TABLE IF EXISTS entity_map_new`);
     sqlite.exec(`
-      CREATE TABLE IF NOT EXISTS entity_map_new (
+      CREATE TABLE entity_map_new (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         local_path TEXT NOT NULL UNIQUE,
         notion_id TEXT NOT NULL,
