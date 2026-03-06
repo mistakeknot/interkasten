@@ -656,15 +656,20 @@ export class SyncEngine {
       });
       return;
     }
-    const resolved = resolve(projectDir, basename(entity.localPath));
-    if (!resolved.startsWith(projectDir + "/")) {
-      appendSyncLog(this.db, {
-        entityMapId: entity.id,
-        operation: "error",
-        direction: "notion_to_local",
-        detail: { error: "Path validation failed", path: entity.localPath },
-      });
-      return;
+
+    // For project entities, the localPath IS the project dir — skip child-path validation.
+    // For doc entities, verify the resolved path stays within the project boundary.
+    if (entity.entityType !== "project") {
+      const resolved = resolve(projectDir, basename(entity.localPath));
+      if (!resolved.startsWith(projectDir + "/")) {
+        appendSyncLog(this.db, {
+          entityMapId: entity.id,
+          operation: "error",
+          direction: "notion_to_local",
+          detail: { error: "Path validation failed", path: entity.localPath },
+        });
+        return;
+      }
     }
 
     // Fetch content from Notion
@@ -980,6 +985,11 @@ export class SyncEngine {
    * Walks up looking for directories registered as project entities.
    */
   private findProjectDir(filePath: string): string | null {
+    // Check the path itself first (handles project entities whose path IS the project dir)
+    const selfEntity = getEntityByPath(this.db, filePath);
+    if (selfEntity?.entityType === "project") return filePath;
+
+    // Walk up ancestors
     const parts = filePath.split("/");
     for (let i = parts.length - 1; i >= 1; i--) {
       const candidate = parts.slice(0, i).join("/");
