@@ -102,6 +102,8 @@ export class SyncEngine {
   private pollInProgress = false;
   private shadowMode: boolean;
   private gitEnabled: boolean;
+  /** Paths being written by the engine — watcher should ignore these */
+  private writeSuppressedPaths = new Set<string>();
 
   constructor(options: SyncEngineOptions) {
     this.db = options.db;
@@ -217,6 +219,9 @@ export class SyncEngine {
    * Handle a file change event from the watcher.
    */
   private handleFileChange(event: FileChangeEvent): void {
+    // Ignore writes originated by the engine itself (e.g. pull writing .md files)
+    if (this.writeSuppressedPaths.has(event.path)) return;
+
     const op: SyncOperation = {
       side: "local",
       type:
@@ -261,20 +266,32 @@ export class SyncEngine {
    *
    * Without a DurableQueue, falls back to the original in-memory drain-and-process.
    */
-  async processQueue(): Promise<void> {
+  async processQueue(filter?: "pull" | "push"): Promise<void> {
     if (this.durableQueue) {
-      await this.processQueueDurable();
+      await this.processQueueDurable(filter);
     } else {
-      await this.processQueueLegacy();
+      await this.processQueueLegacy(filter);
     }
   }
 
   /**
    * Legacy queue processing: drain in-memory queue and process directly.
+   * When filter is set, only process ops matching that direction and
+   * re-enqueue the rest so they aren't lost.
    */
-  private async processQueueLegacy(): Promise<void> {
+  private async processQueueLegacy(filter?: "pull" | "push"): Promise<void> {
     const ops = this.queue.drain();
     for (const op of ops) {
+      // Direction filtering: skip ops that don't match the filter
+      if (filter === "pull" && op.side !== "notion") {
+        this.queue.enqueue(op); // Re-enqueue for later
+        continue;
+      }
+      if (filter === "push" && op.side !== "local") {
+        this.queue.enqueue(op);
+        continue;
+      }
+
       try {
         if (op.side === "notion") {
           await this.processPullOperation(op);
@@ -300,12 +317,22 @@ export class SyncEngine {
    * Durable queue processing: drain in-memory ops into DurableQueue,
    * then claim and process a batch with retry/dead-letter handling.
    */
-  private async processQueueDurable(): Promise<void> {
+  private async processQueueDurable(filter?: "pull" | "push"): Promise<void> {
     const dq = this.durableQueue!;
 
     // 1. Flush in-memory queue into durable queue
     const ops = this.queue.drain();
     for (const op of ops) {
+      // When filtering, re-enqueue ops that don't match
+      if (filter === "pull" && op.side !== "notion") {
+        this.queue.enqueue(op);
+        continue;
+      }
+      if (filter === "push" && op.side !== "local") {
+        this.queue.enqueue(op);
+        continue;
+      }
+
       const isLocal = op.side === "local";
       const entity = isLocal
         ? getEntityByPath(this.db, op.entityKey)
@@ -465,15 +492,19 @@ export class SyncEngine {
 
       await this.notion.call(
         async () => {
-          // Clear existing blocks
+          // Clear existing blocks, but preserve child_page and child_database
+          // blocks — deleting these orphans the child pages/databases in Notion
           const existingBlocks = await this.notion.raw.blocks.children.list({
             block_id: notionPageId,
             page_size: 100,
           });
 
-          // Delete existing blocks
           for (const block of existingBlocks.results) {
-            if ("id" in block) {
+            if ("id" in block && "type" in block) {
+              const blockType = (block as any).type;
+              if (blockType === "child_page" || blockType === "child_database") {
+                continue; // Preserve child references
+              }
               await this.notion.raw.blocks.delete({ block_id: block.id });
             }
           }
@@ -696,6 +727,25 @@ export class SyncEngine {
     // Skip if Notion content hasn't actually changed (hash verification)
     if (entity.lastNotionHash === notionHash) return;
 
+    // Guard: refuse to overwrite non-empty local files with empty Notion content.
+    // The Notion API can return empty blocks due to rate limiting or eventual
+    // consistency. Writing empty content is destructive and almost never intentional.
+    if (!notionContent.trim() && existsSync(entity.localPath)) {
+      const existingContent = readFileSync(entity.localPath, "utf-8");
+      if (existingContent.trim()) {
+        appendSyncLog(this.db, {
+          entityMapId: entity.id,
+          operation: "error",
+          direction: "notion_to_local",
+          detail: {
+            error: "Refusing to overwrite non-empty file with empty Notion content",
+            localSize: existingContent.length,
+          },
+        });
+        return;
+      }
+    }
+
     // Read current local content
     let localContent = "";
     let localHash = "";
@@ -767,10 +817,16 @@ export class SyncEngine {
         ? frontmatter + "\n" + localizedContent
         : localizedContent;
 
-      // 4. Write to local file
-      writeFileSync(entity.localPath, mergedContent, "utf-8");
+      // 4. Write to local file (suppressed from watcher to prevent push-back)
+      this.writeSuppressedPaths.add(entity.localPath);
+      try {
+        writeFileSync(entity.localPath, mergedContent, "utf-8");
+      } finally {
+        // Clear suppression after watcher debounce window (default 2s + 1s stability)
+        setTimeout(() => this.writeSuppressedPaths.delete(entity.localPath), 5000);
+      }
 
-      // 4. WAL: target_written
+      // 5. WAL: target_written
       walMarkTargetWritten(this.db, walEntry.id);
 
       // 5. Update entity_map and set base content

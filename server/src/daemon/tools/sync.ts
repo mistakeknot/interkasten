@@ -99,12 +99,14 @@ export function registerSyncTools(
       const actions: string[] = [];
 
       if (dir === "push" || dir === "both") {
-        await engine.processQueue();
+        await engine.processQueue(dir === "push" ? "push" : undefined);
         actions.push("push");
       }
       if (dir === "pull" || dir === "both") {
         await engine.pollNotionChanges();
-        await engine.processQueue(); // Process any enqueued pull ops
+        // Only process pull ops — don't pick up push ops triggered by the
+        // watcher seeing files we just wrote during the pull above
+        await engine.processQueue("pull");
         actions.push("pull");
       }
 
