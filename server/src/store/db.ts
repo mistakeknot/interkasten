@@ -139,24 +139,50 @@ export function openDatabase(dbPath?: string): { db: DB; sqlite: Database.Databa
     )
   `);
 
-  // Migration: drop UNIQUE constraint on notion_id (v0.4.15)
+  // Migration: drop UNIQUE constraint on notion_id, fix self-referential FK
   // A single Notion page can be tracked as both a project entity (directory container)
   // and a doc entity (content sync target). The UNIQUE constraint blocked this.
-  // SQLite can't drop autoindexes, so we recreate the table.
-  const notionIdIndex = (sqlite.pragma("index_list(entity_map)") as Array<{ name: string; unique: number }>)
-    .find((idx) => idx.name === "sqlite_autoindex_entity_map_2" && idx.unique === 1);
-  if (notionIdIndex) {
-    // Drop entity_map_new if it exists from a previous failed migration attempt
+  //
+  // Also fixes databases where a previous migration left the parent_id FK pointing
+  // at a stale table name (entity_map_new, entity_map_fixed) — ALTER TABLE RENAME
+  // does NOT update FK references in the stored CREATE TABLE SQL.
+  //
+  // Strategy: backup data to a temp table, drop entity_map, recreate with final
+  // name (so FK says REFERENCES entity_map(id)), restore data.
+  const needsMigration = (() => {
+    // Check 1: UNIQUE autoindex on notion_id still exists
+    const hasUniqueNotionId = (sqlite.pragma("index_list(entity_map)") as Array<{ name: string; unique: number }>)
+      .some((idx) => idx.name === "sqlite_autoindex_entity_map_2" && idx.unique === 1);
+    if (hasUniqueNotionId) return true;
+
+    // Check 2: parent_id FK points to wrong table (from broken previous migration)
+    const createSql = (sqlite.prepare(
+      "SELECT sql FROM sqlite_master WHERE type='table' AND name='entity_map'"
+    ).get() as { sql: string } | undefined)?.sql ?? "";
+    if (createSql.includes("REFERENCES entity_map_new") ||
+        createSql.includes("REFERENCES entity_map_fixed")) {
+      return true;
+    }
+
+    return false;
+  })();
+
+  if (needsMigration) {
+    sqlite.exec("PRAGMA foreign_keys = OFF");
     sqlite.exec(`DROP TABLE IF EXISTS entity_map_new`);
+    sqlite.exec(`DROP TABLE IF EXISTS entity_map_fixed`);
+    sqlite.exec(`DROP TABLE IF EXISTS entity_map_backup`);
     sqlite.exec(`
-      CREATE TABLE entity_map_new (
+      CREATE TABLE entity_map_backup AS SELECT * FROM entity_map;
+      DROP TABLE entity_map;
+      CREATE TABLE entity_map (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         local_path TEXT NOT NULL UNIQUE,
         notion_id TEXT NOT NULL,
         entity_type TEXT NOT NULL,
         tier TEXT,
         doc_tier TEXT,
-        parent_id INTEGER REFERENCES entity_map_new(id),
+        parent_id INTEGER REFERENCES entity_map(id),
         tags TEXT DEFAULT '[]',
         last_local_hash TEXT,
         last_notion_hash TEXT,
@@ -170,7 +196,7 @@ export function openDatabase(dbPath?: string): { db: DB; sqlite: Database.Databa
         deleted_at TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
-      INSERT INTO entity_map_new (
+      INSERT INTO entity_map (
         id, local_path, notion_id, entity_type, tier, doc_tier,
         parent_id, tags, last_local_hash, last_notion_hash,
         last_notion_ver, base_content_id, last_sync_ts,
@@ -182,14 +208,14 @@ export function openDatabase(dbPath?: string): { db: DB; sqlite: Database.Databa
         last_notion_ver, base_content_id, last_sync_ts,
         conflict_detected_at, conflict_local_content_id,
         conflict_notion_content_id, deleted, deleted_at, created_at
-      FROM entity_map;
-      DROP TABLE entity_map;
-      ALTER TABLE entity_map_new RENAME TO entity_map;
+      FROM entity_map_backup;
+      DROP TABLE entity_map_backup;
       CREATE INDEX IF NOT EXISTS idx_entity_map_local_path ON entity_map(local_path);
       CREATE INDEX IF NOT EXISTS idx_entity_map_notion_id ON entity_map(notion_id);
       CREATE INDEX IF NOT EXISTS idx_entity_map_deleted ON entity_map(deleted);
       CREATE INDEX IF NOT EXISTS idx_entity_map_parent_id ON entity_map(parent_id);
     `);
+    sqlite.exec("PRAGMA foreign_keys = ON");
   }
 
   const db = drizzle(sqlite, { schema });
