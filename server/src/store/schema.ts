@@ -8,7 +8,7 @@ import { sql } from "drizzle-orm";
 export const entityMap = sqliteTable("entity_map", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   localPath: text("local_path").notNull().unique(),
-  notionId: text("notion_id").notNull().unique(),
+  notionId: text("notion_id").notNull(),
   entityType: text("entity_type").notNull(), // 'project' | 'doc' | 'ref' | 'issues'
   tier: text("tier"), // 'T1' | 'T2' | null
   docTier: text("doc_tier"), // 'Product' | 'Tool' | 'Inactive' | null (project-level triage)

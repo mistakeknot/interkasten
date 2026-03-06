@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync } from "fs";
 import { resolve, basename, dirname, join } from "path";
 import type { DB } from "../store/db.js";
 import type { NotionClient } from "./notion-client.js";
@@ -413,6 +413,9 @@ export class SyncEngine {
 
     const filePath = op.entityKey;
     if (!existsSync(filePath)) return;
+
+    // Guard: skip directories (project entities map to dirs, not files)
+    if (statSync(filePath).isDirectory()) return;
 
     // Read current file content
     const content = readFileSync(filePath, "utf-8");

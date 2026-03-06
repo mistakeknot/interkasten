@@ -58,9 +58,10 @@ export function registerDoc(
   db: DB,
   localPath: string,
   notionId: string,
-  tier: Tier = "T2"
+  tier: Tier = "T2",
+  parentId?: number | null
 ): EntityMap {
-  return upsertEntity(db, {
+  const entity = upsertEntity(db, {
     localPath,
     notionId,
     entityType: "doc",
@@ -71,6 +72,16 @@ export function registerDoc(
     baseContentId: null,
     lastSyncTs: new Date().toISOString(),
   });
+
+  if (parentId != null) {
+    db.update(entityMap)
+      .set({ parentId })
+      .where(eq(entityMap.id, entity.id))
+      .run();
+    return db.select().from(entityMap).where(eq(entityMap.id, entity.id)).get()!;
+  }
+
+  return entity;
 }
 
 /**

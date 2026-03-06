@@ -9,6 +9,7 @@ import {
   registerProject,
   registerDoc,
   listDocs,
+  getDocsForProject,
 } from "../../src/sync/entity-map.js";
 import type { DB } from "../../src/store/db.js";
 import type Database from "better-sqlite3";
@@ -178,5 +179,31 @@ describe("interkasten_link entity registration", () => {
     // Doc entity should appear in doc listing
     const docs = listDocs(db);
     expect(docs.some((d) => d.notionId === notionId)).toBe(true);
+  });
+
+  it("registers doc alongside existing project entity with same notionId", () => {
+    const notionId = "abcdef12-3456-7890-abcd-ef1234567890";
+
+    // Simulate register_project (creates project entity for the directory)
+    const project = registerProject(db, testDir, notionId);
+    expect(project.entityType).toBe("project");
+
+    // Now link creates a doc entity with the same notionId + parentId
+    const docPath = resolve(testDir, "My-Page.md");
+    const doc = registerDoc(db, docPath, notionId, "T1", project.id);
+
+    expect(doc.entityType).toBe("doc");
+    expect(doc.parentId).toBe(project.id);
+    expect(doc.notionId).toBe(notionId);
+
+    // lookupByNotionId should prefer the doc entity
+    const byNotion = lookupByNotionId(db, notionId);
+    expect(byNotion).toBeDefined();
+    expect(byNotion!.entityType).toBe("doc");
+
+    // getDocsForProject should find the doc via parentId
+    const projectDocs = getDocsForProject(db, project.id);
+    expect(projectDocs).toHaveLength(1);
+    expect(projectDocs[0]!.localPath).toBe(docPath);
   });
 });

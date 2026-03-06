@@ -5,6 +5,7 @@ import { resolve, basename } from "path";
 import type { DaemonContext } from "../context.js";
 import {
   registerDoc,
+  registerProject,
   lookupByPath,
   lookupByNotionId,
 } from "../../sync/entity-map.js";
@@ -115,9 +116,12 @@ export function registerLinkTool(server: McpServer, ctx: DaemonContext): void {
         };
       }
 
-      // 4. Check for duplicate registrations
+      // 4. Check for duplicate registrations.
+      // A directory may already be registered as a project entity (via register_project
+      // or init). That's fine — we'll create a doc entity alongside it for content sync.
+      // But if a *doc* entity already exists for this path or notionId, it's a true dup.
       const existingByPath = lookupByPath(ctx.db, dirPath);
-      if (existingByPath) {
+      if (existingByPath && existingByPath.entityType !== "project") {
         return {
           content: [
             {
@@ -129,16 +133,21 @@ export function registerLinkTool(server: McpServer, ctx: DaemonContext): void {
       }
 
       const existingByNotion = lookupByNotionId(ctx.db, pageId);
-      if (existingByNotion) {
+      if (existingByNotion && existingByNotion.entityType !== "project") {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Notion page already tracked: ${pageId} → ${existingByNotion.localPath}`,
+              text: `Notion page already tracked as doc: ${pageId} → ${existingByNotion.localPath}`,
             },
           ],
         };
       }
+
+      // Use the existing project entity as parent if one exists
+      const projectEntity = existingByPath?.entityType === "project" ? existingByPath
+        : existingByNotion?.entityType === "project" ? existingByNotion
+        : null;
 
       // 5. Validate Notion page is accessible (if Notion client available)
       let pageTitle = basename(dirPath);
@@ -186,7 +195,21 @@ export function registerLinkTool(server: McpServer, ctx: DaemonContext): void {
       // concrete file path gives the sync engine a target for pulled content.
       const contentFile = `${sanitizeFilename(pageTitle)}.md`;
       const docPath = resolve(dirPath, contentFile);
-      const entity = registerDoc(ctx.db, docPath, pageId, "T1");
+
+      // Check if a doc entity already exists for this file path
+      const existingDoc = lookupByPath(ctx.db, docPath);
+      if (existingDoc) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Already linked: ${contentFile} → https://notion.so/${existingDoc.notionId.replace(/-/g, "")}`,
+            },
+          ],
+        };
+      }
+
+      const entity = registerDoc(ctx.db, docPath, pageId, "T1", projectEntity?.id ?? null);
 
       const output: string[] = [
         `Linked: ${pageTitle}`,
@@ -228,7 +251,7 @@ export function registerLinkTool(server: McpServer, ctx: DaemonContext): void {
             const childPath = resolve(dirPath, `${sanitizeFilename(child.title)}.md`);
             const existing = lookupByNotionId(ctx.db, child.id);
             if (!existing) {
-              registerDoc(ctx.db, childPath, child.id, "T1");
+              registerDoc(ctx.db, childPath, child.id, "T1", projectEntity?.id ?? null);
               childCount++;
             }
           }

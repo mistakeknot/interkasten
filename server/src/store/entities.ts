@@ -67,13 +67,23 @@ export function getEntityByPath(db: DB, localPath: string): EntityMap | undefine
 
 /**
  * Get entity by Notion page ID.
+ * When multiple entities share the same notionId (e.g. a project + doc pair),
+ * prefer the doc entity — it's the one the sync engine operates on.
  */
 export function getEntityByNotionId(db: DB, notionId: string): EntityMap | undefined {
-  return db
+  const matches = db
     .select()
     .from(entityMap)
     .where(and(eq(entityMap.notionId, notionId), eq(entityMap.deleted, false)))
-    .get();
+    .all();
+
+  if (matches.length === 0) return undefined;
+  if (matches.length === 1) return matches[0];
+
+  // Prefer doc > db_row > everything else (project entities are skipped by sync)
+  return matches.find((m) => m.entityType === "doc")
+    ?? matches.find((m) => m.entityType === "db_row")
+    ?? matches[0];
 }
 
 /**

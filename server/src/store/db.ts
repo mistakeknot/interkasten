@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS base_content (
 CREATE TABLE IF NOT EXISTS entity_map (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   local_path TEXT NOT NULL UNIQUE,
-  notion_id TEXT NOT NULL UNIQUE,
+  notion_id TEXT NOT NULL,
   entity_type TEXT NOT NULL,
   tier TEXT,
   last_local_hash TEXT,
@@ -138,6 +138,45 @@ export function openDatabase(dbPath?: string): { db: DB; sqlite: Database.Databa
       UNIQUE(project_id)
     )
   `);
+
+  // Migration: drop UNIQUE constraint on notion_id (v0.4.15)
+  // A single Notion page can be tracked as both a project entity (directory container)
+  // and a doc entity (content sync target). The UNIQUE constraint blocked this.
+  // SQLite can't drop autoindexes, so we recreate the table.
+  const notionIdIndex = (sqlite.pragma("index_list(entity_map)") as Array<{ name: string; unique: number }>)
+    .find((idx) => idx.name === "sqlite_autoindex_entity_map_2" && idx.unique === 1);
+  if (notionIdIndex) {
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS entity_map_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        local_path TEXT NOT NULL UNIQUE,
+        notion_id TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        tier TEXT,
+        doc_tier TEXT,
+        parent_id INTEGER REFERENCES entity_map_new(id),
+        tags TEXT DEFAULT '[]',
+        last_local_hash TEXT,
+        last_notion_hash TEXT,
+        last_notion_ver TEXT,
+        base_content_id INTEGER REFERENCES base_content(id),
+        last_sync_ts TEXT NOT NULL,
+        conflict_detected_at TEXT,
+        conflict_local_content_id INTEGER REFERENCES base_content(id),
+        conflict_notion_content_id INTEGER REFERENCES base_content(id),
+        deleted INTEGER NOT NULL DEFAULT 0,
+        deleted_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      INSERT INTO entity_map_new SELECT * FROM entity_map;
+      DROP TABLE entity_map;
+      ALTER TABLE entity_map_new RENAME TO entity_map;
+      CREATE INDEX IF NOT EXISTS idx_entity_map_local_path ON entity_map(local_path);
+      CREATE INDEX IF NOT EXISTS idx_entity_map_notion_id ON entity_map(notion_id);
+      CREATE INDEX IF NOT EXISTS idx_entity_map_deleted ON entity_map(deleted);
+      CREATE INDEX IF NOT EXISTS idx_entity_map_parent_id ON entity_map(parent_id);
+    `);
+  }
 
   const db = drizzle(sqlite, { schema });
 
