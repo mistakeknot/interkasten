@@ -7,6 +7,8 @@ import {
   lookupByPath,
   lookupByNotionId,
   registerProject,
+  registerDoc,
+  listDocs,
 } from "../../src/sync/entity-map.js";
 import type { DB } from "../../src/store/db.js";
 import type Database from "better-sqlite3";
@@ -150,5 +152,31 @@ describe("interkasten_link entity registration", () => {
     const existing = lookupByNotionId(db, notionId);
     expect(existing).toBeDefined();
     expect(existing!.localPath).toBe(testDir);
+  });
+
+  it("registers a doc entity (not project) for linked page content", () => {
+    const notionId = "abcdef12-3456-7890-abcd-ef1234567890";
+    const docPath = resolve(testDir, "My-Page.md");
+
+    // interkasten_link registers a doc entity so the sync engine has a
+    // concrete file path to write pulled content to
+    const doc = registerDoc(db, docPath, notionId, "T1");
+
+    expect(doc.entityType).toBe("doc");
+    expect(doc.localPath).toBe(docPath);
+    expect(doc.notionId).toBe(notionId);
+
+    // Should be retrievable by both path and notionId
+    const byDocPath = lookupByPath(db, docPath);
+    expect(byDocPath).toBeDefined();
+    expect(byDocPath!.entityType).toBe("doc");
+
+    const byNotion = lookupByNotionId(db, notionId);
+    expect(byNotion).toBeDefined();
+    expect(byNotion!.entityType).toBe("doc");
+
+    // Doc entity should appear in doc listing
+    const docs = listDocs(db);
+    expect(docs.some((d) => d.notionId === notionId)).toBe(true);
   });
 });

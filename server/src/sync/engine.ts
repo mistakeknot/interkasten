@@ -559,6 +559,9 @@ export class SyncEngine {
         if (!entity.notionId || !entity.lastSyncTs) continue;
         // Skip db_row entities — they are polled in batch via their database
         if (entity.entityType === "db_row") continue;
+        // Skip project entities — they map directories for containment,
+        // not file content. Doc entities handle the actual page content.
+        if (entity.entityType === "project") continue;
 
         const since = new Date(entity.lastSyncTs);
 
@@ -625,6 +628,12 @@ export class SyncEngine {
       return;
     }
 
+    // Project entities are containers (directories), not files.
+    // They have no file path to write content to — skip.
+    if (entity.entityType === "project") {
+      return;
+    }
+
     // Database rows get special pull handling
     if (entity.entityType === "db_row") {
       const dbId = this.findDatabaseIdForRow(entity);
@@ -643,7 +652,9 @@ export class SyncEngine {
     }
 
     // Validate path (safety: prevent path traversal)
-    const projectDir = this.findProjectDir(entity.localPath);
+    // For docs registered via interkasten_link (no project ancestor), use
+    // the doc's own parent directory as the project boundary.
+    const projectDir = this.findProjectDir(entity.localPath) ?? dirname(entity.localPath);
     if (!projectDir) {
       appendSyncLog(this.db, {
         entityMapId: entity.id,

@@ -4,7 +4,6 @@ import { existsSync, readdirSync } from "fs";
 import { resolve, basename } from "path";
 import type { DaemonContext } from "../context.js";
 import {
-  registerProject,
   registerDoc,
   lookupByPath,
   lookupByNotionId,
@@ -181,12 +180,17 @@ export function registerLinkTool(server: McpServer, ctx: DaemonContext): void {
         }
       }
 
-      // 6. Register the project entity
-      const entity = registerProject(ctx.db, dirPath, pageId);
+      // 6. Register as a doc entity pointing to a content file inside the directory.
+      // A project entity maps a directory for hierarchy/containment but has no
+      // file path for the sync engine to write content to. A doc entity with a
+      // concrete file path gives the sync engine a target for pulled content.
+      const contentFile = `${sanitizeFilename(pageTitle)}.md`;
+      const docPath = resolve(dirPath, contentFile);
+      const entity = registerDoc(ctx.db, docPath, pageId, "T1");
 
       const output: string[] = [
         `Linked: ${pageTitle}`,
-        `  Local: ${dirPath}`,
+        `  Local: ${docPath}`,
         `  Notion: https://notion.so/${pageId.replace(/-/g, "")}`,
       ];
 
