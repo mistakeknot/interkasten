@@ -168,7 +168,19 @@ export function openDatabase(dbPath?: string): { db: DB; sqlite: Database.Databa
         deleted_at TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
-      INSERT INTO entity_map_new SELECT * FROM entity_map;
+      INSERT INTO entity_map_new (
+        id, local_path, notion_id, entity_type, tier, doc_tier,
+        parent_id, tags, last_local_hash, last_notion_hash,
+        last_notion_ver, base_content_id, last_sync_ts,
+        conflict_detected_at, conflict_local_content_id,
+        conflict_notion_content_id, deleted, deleted_at, created_at
+      ) SELECT
+        id, local_path, notion_id, entity_type, tier, doc_tier,
+        parent_id, tags, last_local_hash, last_notion_hash,
+        last_notion_ver, base_content_id, last_sync_ts,
+        conflict_detected_at, conflict_local_content_id,
+        conflict_notion_content_id, deleted, deleted_at, created_at
+      FROM entity_map;
       DROP TABLE entity_map;
       ALTER TABLE entity_map_new RENAME TO entity_map;
       CREATE INDEX IF NOT EXISTS idx_entity_map_local_path ON entity_map(local_path);
