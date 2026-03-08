@@ -2,7 +2,7 @@
 
 Claude Code plugin + MCP server for bidirectional Notion sync with adaptive AI documentation.
 
-**Version:** 0.4.0
+**Version:** 0.4.20
 **Repository:** `github.com/mistakeknot/interkasten`
 **Monorepo location:** `plugins/interkasten/` in Interverse
 
@@ -14,7 +14,7 @@ Claude Code plugin + MCP server for bidirectional Notion sync with adaptive AI d
 
 ```bash
 cd server && npm install && npm run build
-npm test          # 130 tests (121 unit + 9 integration)
+npm test          # 253 tests (unit + 9 integration)
 node dist/index.js  # MCP server on stdio
 ```
 

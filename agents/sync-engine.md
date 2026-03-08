@@ -20,6 +20,15 @@ Every sync operation follows: `pending` → `target_written` → `committed` →
 - WAL entry lifetime = first mutation → last side effect (push to Notion)
 - See `docs/guides/data-integrity-patterns.md` for the full pattern
 
+## Multi-Workspace Token Resolution (v0.4.20)
+
+Supports multiple Notion workspaces via named token aliases in config. Each unique token gets its own `NotionClient` instance with independent rate limiter and circuit breaker.
+
+- **Resolution chain**: explicit tool param → stored `token_alias` → `notion.database_tokens[id]` → `notion.project_tokens[path]` → global `INTERKASTEN_NOTION_TOKEN`
+- **Client pool**: keyed by resolved token value (not alias), so identical tokens share rate limits
+- **Token alias persistence**: stored in `database_schemas.token_alias` on first track, used automatically on refresh
+- **Config**: `notion.tokens` (alias → `${ENV_VAR}`), `notion.database_tokens` (database_id → alias), `notion.project_tokens` (path → alias)
+
 ## Circuit Breaker
 
 Notion API errors tracked; after N consecutive failures, circuit opens (stops API calls). Half-open after cooldown allows a probe request. Prevents cascading failures.

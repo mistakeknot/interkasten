@@ -3,7 +3,7 @@
 ## Testing
 
 ```bash
-cd server && npm test                    # 121 unit tests
+cd server && npm test                    # 253 unit tests
 INTERKASTEN_TEST_TOKEN=ntn_... npm test  # + 9 integration tests
 ```
 
@@ -11,7 +11,7 @@ Test structure mirrors source:
 
 - `tests/config/` — config loader tests
 - `tests/store/` — entity CRUD, WAL state machine tests
-- `tests/sync/` — translator, merge, beads-sync, triage, hierarchy, poller, engine, linked-refs, soft-delete, key-docs
+- `tests/sync/` — translator, merge, beads-sync, triage, hierarchy, poller, engine, linked-refs, soft-delete, key-docs, token-resolver
 - `tests/integration/` — end-to-end Notion API tests (skipped without token)
 
 ## Configuration
@@ -25,12 +25,17 @@ Test structure mirrors source:
 | `sync.conflict_strategy` | `three-way-merge` | Merge conflict fallback |
 | `project_detection.markers` | `[".beads", ".git"]` | Files that indicate a project |
 | `project_detection.max_depth` | `4` | Max scan depth |
+| `notion.tokens` | `{}` | Named token aliases for multi-workspace sync |
+| `notion.database_tokens` | `{}` | Database ID → token alias overrides |
+| `notion.project_tokens` | `{}` | Project path → token alias overrides |
 
 ## Environment
 
 ```bash
-export INTERKASTEN_NOTION_TOKEN="ntn_..."  # Required for Notion sync
+export INTERKASTEN_NOTION_TOKEN="ntn_..."  # Required for Notion sync (default token)
 export INTERKASTEN_TEST_TOKEN="ntn_..."    # For integration tests (can be same token)
+# Optional: additional tokens for multi-workspace sync
+export NOTION_TOKEN_WORK="ntn_..."         # Referenced as ${NOTION_TOKEN_WORK} in config
 ```
 
 ## Common Tasks
@@ -67,10 +72,10 @@ Run `/interkasten:interkasten-doctor` — checks config file, Notion token, MCP 
 - `better-sqlite3` is a native addon — can't be bundled with esbuild
 - Bootstrap approach: `start-mcp.sh` runs `npm install` if `node_modules` missing
 
-## Status (as of v0.4.0)
+## Status (as of v0.4.20)
 
 - Phases 0-3 complete (scaffold, foundation, push sync, bidirectional sync)
-- 22 MCP tools, 229 tests, 3 skills, 2 hooks
+- 23 MCP tools, 253 tests, 3 skills, 2 hooks
 - @notionhq/client upgraded from v2 to v5 (data source model)
-- All 59 local beads closed (35 were flux-drive findings)
+- Multi-workspace Notion tokens with resolution chain (v0.4.20)
 - Next candidates: webhook receiver (P2, deferred to v0.5.x), interphase context integration (P2)

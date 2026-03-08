@@ -1,12 +1,13 @@
-# MCP Tools (21 registered)
+# MCP Tools (23 registered)
 
-## Infrastructure (4 tools)
+## Infrastructure (5 tools)
 
 | Tool | Description |
 |------|-------------|
-| `interkasten_health` | Liveness probe: uptime, SQLite, Notion, circuit breaker, WAL |
+| `interkasten_health` | Liveness probe: uptime, SQLite, Notion, circuit breaker, WAL, multi-token status |
 | `interkasten_config_get` | Read config (full or by key path) |
 | `interkasten_config_set` | Update config value |
+| `interkasten_config_save` | Save a named Notion token for multi-workspace sync |
 | `interkasten_version` | Daemon + schema version |
 
 ## Project Management (7 tools)
@@ -41,6 +42,15 @@
 | `interkasten_sync_log` | Query sync history |
 | `interkasten_conflicts` | List unresolved merge conflicts with content previews |
 | `interkasten_list_issues` | List synced beads issues with Notion page IDs |
+
+## Database Tracking (4 tools)
+
+| Tool | Description |
+|------|-------------|
+| `interkasten_track_database` | Track a Notion database for row-level sync (supports `token` param for multi-workspace) |
+| `interkasten_untrack_database` | Stop tracking: soft-delete rows + remove schema |
+| `interkasten_list_databases` | List tracked databases with row counts, token alias, sync status |
+| `interkasten_refresh_database` | Re-sync: update schema, pull new/changed rows, detect deletions (uses stored token alias) |
 
 ## Legacy (1 tool)
 

@@ -4,7 +4,7 @@
 
 ```
 interkasten/
-├── .claude-plugin/plugin.json  # Claude Code plugin manifest (v0.4.0)
+├── .claude-plugin/plugin.json  # Claude Code plugin manifest (v0.4.20)
 ├── server/
 │   ├── package.json            # Node >=20, ESM, vitest
 │   ├── tsconfig.json
@@ -16,7 +16,8 @@ interkasten/
 │       │   └── loader.ts       # YAML config loader (~/.interkasten/config.yaml)
 │       ├── store/
 │       │   ├── db.ts           # SQLite via better-sqlite3 + drizzle-orm
-│       │   ├── schema.ts       # 5 tables: entity_map, base_content, sync_log, sync_wal, beads_snapshot
+│       │   ├── schema.ts       # 6 tables: entity_map, base_content, sync_log, sync_wal, database_schemas, beads_snapshot
+│       │   ├── databases.ts    # Database schema CRUD (track/untrack/list)
 │       │   ├── entities.ts     # Entity CRUD, conflict tracking, soft-delete
 │       │   ├── wal.ts          # WAL state machine: pending → target_written → committed → delete
 │       │   └── sync-log.ts     # Append-only operation log
@@ -26,6 +27,7 @@ interkasten/
 │       │   ├── queue.ts        # Sync operation queue with dedup
 │       │   ├── translator.ts   # Markdown ↔ Notion block conversion
 │       │   ├── notion-client.ts # Notion API wrapper with circuit breaker
+│       │   ├── token-resolver.ts # Multi-workspace token resolution chain + client pool
 │       │   ├── notion-poller.ts # 60s polling for Notion-side changes
 │       │   ├── merge.ts        # Three-way merge via node-diff3
 │       │   ├── beads-sync.ts   # Beads ↔ Notion issue sync (diff-based, snapshot tracking)
@@ -34,10 +36,11 @@ interkasten/
 │       │   ├── key-docs.ts     # Key doc URL columns in Notion
 │       │   └── triage.ts       # Legacy tier classification (prefer gather_signals)
 │       └── daemon/
-│           ├── context.ts      # Shared DaemonContext (db, config, notion, engine)
+│           ├── context.ts      # Shared DaemonContext (db, config, notion, tokenResolver, engine)
 │           └── tools/
 │               ├── health.ts   # Liveness probe
-│               ├── config.ts   # Config get/set
+│               ├── config.ts   # Config get/set/save (+ token management)
+│               ├── databases.ts # Database tracking CRUD (track, untrack, list, refresh)
 │               ├── version.ts  # Version info
 │               ├── init.ts     # Setup wizard + project discovery
 │               ├── projects.ts # Project CRUD

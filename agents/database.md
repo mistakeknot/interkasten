@@ -1,4 +1,4 @@
-# Database Schema (5 tables)
+# Database Schema (6 tables)
 
 ## entity_map
 
@@ -31,6 +31,20 @@ Append-only operation log. Operations: `push`, `pull`, `merge`, `conflict`, `err
 ## sync_wal
 
 Write-ahead log for crash recovery. States: `pending` → `target_written` → `committed` → `rolled_back`.
+
+## database_schemas
+
+Stores Notion database schemas for tracked databases. Used to convert between frontmatter keys and Notion property names/types.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `notion_database_id` | text, unique | Notion database/data source ID |
+| `data_source_id` | text | Resolved Notion data source ID |
+| `title` | text | Database title |
+| `schema_json` | text | JSON-serialized property schema |
+| `output_dir` | text | Local directory for row files |
+| `token_alias` | text | Named token alias from config (null = default token) |
+| `last_fetched_at` | text | Last fetch timestamp |
 
 ## beads_snapshot
 
