@@ -6,12 +6,12 @@ Claude Code plugin + MCP server for bidirectional Notion sync with adaptive AI d
 
 ```bash
 cd server && npm install && npm run build
-npm test  # 253 tests (unit + 9 integration, integration skipped without INTERKASTEN_TEST_TOKEN)
+npm test  # 261 tests (unit + 9 integration, integration skipped without INTERKASTEN_TEST_TOKEN)
 ```
 
 ## Architecture
 
-TypeScript MCP server in `server/src/`: config (Zod), store (Drizzle/SQLite), sync engine (bidirectional with WAL), daemon tools (23 MCP handlers). See [AGENTS.md](./AGENTS.md) for full tool listing and source tree.
+TypeScript MCP server in `server/src/`: config (Zod), store (Drizzle/SQLite), sync engine (bidirectional with WAL), daemon tools (27 MCP handlers). See [AGENTS.md](./AGENTS.md) for full tool listing and source tree.
 
 **Agent-native design:** Tools expose raw signals and CRUD. No hardcoded classification, tag vocabulary, cascade logic, or auto-file-selection — intelligence lives in skills.
 
@@ -29,6 +29,7 @@ TypeScript MCP server in `server/src/`: config (Zod), store (Drizzle/SQLite), sy
 - **Bidirectional sync**: push (local → Notion) + pull (Notion → local) with 60s polling
 - **Three-way merge**: `node-diff3` with configurable conflict strategy (local-wins default fallback)
 - **WAL protocol**: pending → target_written → committed → delete (crash recovery, both directions)
+- **Page sync**: One-way pull of Notion pages (not just databases) with recursive child discovery
 - **Multi-token**: Token resolution chain (database → project → default) with NotionClient pool per workspace
 - **Circuit breaker**: closed → open (after N failures) → half-open → closed
 - **Content hashing**: SHA-256 of normalized markdown

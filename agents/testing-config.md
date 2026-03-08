@@ -3,14 +3,14 @@
 ## Testing
 
 ```bash
-cd server && npm test                    # 253 unit tests
+cd server && npm test                    # 261 unit tests
 INTERKASTEN_TEST_TOKEN=ntn_... npm test  # + 9 integration tests
 ```
 
 Test structure mirrors source:
 
 - `tests/config/` — config loader tests
-- `tests/store/` — entity CRUD, WAL state machine tests
+- `tests/store/` — entity CRUD, WAL state machine, page tracking tests
 - `tests/sync/` — translator, merge, beads-sync, triage, hierarchy, poller, engine, linked-refs, soft-delete, key-docs, token-resolver
 - `tests/integration/` — end-to-end Notion API tests (skipped without token)
 
@@ -75,7 +75,7 @@ Run `/interkasten:interkasten-doctor` — checks config file, Notion token, MCP 
 ## Status (as of v0.4.20)
 
 - Phases 0-3 complete (scaffold, foundation, push sync, bidirectional sync)
-- 23 MCP tools, 253 tests, 3 skills, 2 hooks
+- 27 MCP tools, 261 tests, 3 skills, 2 hooks
 - @notionhq/client upgraded from v2 to v5 (data source model)
 - Multi-workspace Notion tokens with resolution chain (v0.4.20)
 - Next candidates: webhook receiver (P2, deferred to v0.5.x), interphase context integration (P2)

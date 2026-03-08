@@ -14,7 +14,7 @@ Claude Code plugin + MCP server for bidirectional Notion sync with adaptive AI d
 
 ```bash
 cd server && npm install && npm run build
-npm test          # 253 tests (unit + 9 integration)
+npm test          # 261 tests (unit + 9 integration)
 node dist/index.js  # MCP server on stdio
 ```
 

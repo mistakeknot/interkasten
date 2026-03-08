@@ -4,7 +4,7 @@ Bidirectional Notion sync for Claude Code.
 
 ## What this does
 
-interkasten is the living bridge between your project filesystem and Notion. Changes flow both directions: edit a page in Notion and it syncs to your project; update a markdown file locally and it pushes to Notion. The MCP server provides 23 tools covering project CRUD, bidirectional sync, database tracking, file scanning, conflict resolution, and signal gathering. Multi-workspace support lets you sync databases from different Notion workspaces using named token aliases.
+interkasten is the living bridge between your project filesystem and Notion. Changes flow both directions: edit a page in Notion and it syncs to your project; update a markdown file locally and it pushes to Notion. The MCP server provides 27 tools covering project CRUD, bidirectional sync, page and database tracking, file scanning, conflict resolution, and signal gathering. Multi-workspace support lets you sync from different Notion workspaces using named token aliases.
 
 Conflict resolution uses three-way merge with `node-diff3`. When both sides change the same document, it attempts automatic resolution; when that fails, you get a structured conflict with the local version, remote version, and common ancestor so you can make an informed decision rather than guessing which version is newer.
 
@@ -40,7 +40,7 @@ Check sync health:
 /interkasten:doctor
 ```
 
-The MCP server starts automatically and provides 23 tools for programmatic Notion interaction. A SessionStart hook shows brief sync status; a Stop hook warns about pending sync operations.
+The MCP server starts automatically and provides 27 tools for programmatic Notion interaction. A SessionStart hook shows brief sync status; a Stop hook warns about pending sync operations.
 
 ### Multi-workspace sync
 
@@ -52,6 +52,16 @@ interkasten_track_database(database_id: "abc123", token: "work")
 ```
 
 The token alias is stored with the tracked database, so refresh operations use it automatically.
+
+### Page sync
+
+Pull regular Notion pages (not just databases) as local markdown:
+
+```
+interkasten_track_page(page_id: "abc123", recursive: true, depth: 3)
+```
+
+Child pages are discovered and pulled recursively. Use `interkasten_refresh_page` to re-sync.
 
 ## Architecture
 

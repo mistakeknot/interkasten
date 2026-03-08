@@ -16,8 +16,9 @@ interkasten/
 │       │   └── loader.ts       # YAML config loader (~/.interkasten/config.yaml)
 │       ├── store/
 │       │   ├── db.ts           # SQLite via better-sqlite3 + drizzle-orm
-│       │   ├── schema.ts       # 6 tables: entity_map, base_content, sync_log, sync_wal, database_schemas, beads_snapshot
+│       │   ├── schema.ts       # 7 tables: entity_map, base_content, sync_log, sync_wal, database_schemas, page_tracking, beads_snapshot
 │       │   ├── databases.ts    # Database schema CRUD (track/untrack/list)
+│       │   ├── pages.ts        # Page tracking CRUD (track/untrack/list)
 │       │   ├── entities.ts     # Entity CRUD, conflict tracking, soft-delete
 │       │   ├── wal.ts          # WAL state machine: pending → target_written → committed → delete
 │       │   └── sync-log.ts     # Append-only operation log
@@ -41,6 +42,7 @@ interkasten/
 │               ├── health.ts   # Liveness probe
 │               ├── config.ts   # Config get/set/save (+ token management)
 │               ├── databases.ts # Database tracking CRUD (track, untrack, list, refresh)
+│               ├── pages.ts    # Page tracking: track, untrack, list, refresh (recursive child discovery)
 │               ├── version.ts  # Version info
 │               ├── init.ts     # Setup wizard + project discovery
 │               ├── projects.ts # Project CRUD

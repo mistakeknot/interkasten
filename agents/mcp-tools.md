@@ -1,4 +1,4 @@
-# MCP Tools (23 registered)
+# MCP Tools (27 registered)
 
 ## Infrastructure (5 tools)
 
@@ -51,6 +51,15 @@
 | `interkasten_untrack_database` | Stop tracking: soft-delete rows + remove schema |
 | `interkasten_list_databases` | List tracked databases with row counts, token alias, sync status |
 | `interkasten_refresh_database` | Re-sync: update schema, pull new/changed rows, detect deletions (uses stored token alias) |
+
+## Page Tracking (4 tools)
+
+| Tool | Description |
+|------|-------------|
+| `interkasten_track_page` | Pull a Notion page (+ child pages) as local markdown. Supports `token`, `recursive`, `depth` params. |
+| `interkasten_untrack_page` | Stop tracking: soft-delete page entities + remove tracking config |
+| `interkasten_list_pages` | List tracked pages with child counts, token alias, sync status |
+| `interkasten_refresh_page` | Re-sync: pull updated content, discover new/deleted children (uses stored token alias) |
 
 ## Legacy (1 tool)
 

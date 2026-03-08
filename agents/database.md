@@ -1,4 +1,4 @@
-# Database Schema (6 tables)
+# Database Schema (7 tables)
 
 ## entity_map
 
@@ -44,6 +44,20 @@ Stores Notion database schemas for tracked databases. Used to convert between fr
 | `schema_json` | text | JSON-serialized property schema |
 | `output_dir` | text | Local directory for row files |
 | `token_alias` | text | Named token alias from config (null = default token) |
+| `last_fetched_at` | text | Last fetch timestamp |
+
+## page_tracking
+
+Stores tracked Notion page roots for page-level sync. Child pages stored in entity_map with `page_child` type.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `notion_page_id` | text, unique | Notion page ID |
+| `title` | text | Page title |
+| `output_dir` | text | Local directory for page files |
+| `token_alias` | text | Named token alias (null = default token) |
+| `recursive` | boolean | Pull child pages (default: true) |
+| `max_depth` | integer | Max recursion depth (default: 3) |
 | `last_fetched_at` | text | Last fetch timestamp |
 
 ## beads_snapshot
