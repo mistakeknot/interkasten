@@ -9,7 +9,7 @@ import {
 } from "../store/entities.js";
 import { entityMap, type EntityMap } from "../store/schema.js";
 
-export type EntityType = "project" | "doc" | "ref" | "issues" | "database" | "db_row";
+export type EntityType = "project" | "doc" | "ref" | "issues" | "database" | "db_row" | "page" | "page_child";
 export type Tier = "T1" | "T2";
 
 /**
@@ -351,6 +351,73 @@ export function getRowsForDatabase(db: DB, databaseEntityId: number): EntityMap[
       and(
         eq(entityMap.parentId, databaseEntityId),
         eq(entityMap.entityType, "db_row"),
+        eq(entityMap.deleted, false)
+      )
+    )
+    .all();
+}
+
+/**
+ * Register a tracked Notion page root in the entity map.
+ */
+export function registerPage(
+  db: DB,
+  localPath: string,
+  notionId: string,
+): EntityMap {
+  return upsertEntity(db, {
+    localPath,
+    notionId,
+    entityType: "page",
+    tier: null,
+    lastLocalHash: null,
+    lastNotionHash: null,
+    lastNotionVer: null,
+    baseContentId: null,
+    lastSyncTs: new Date().toISOString(),
+  });
+}
+
+/**
+ * Register a child page under a tracked root page.
+ */
+export function registerPageChild(
+  db: DB,
+  localPath: string,
+  notionId: string,
+  parentEntityId: number,
+): EntityMap {
+  const entity = upsertEntity(db, {
+    localPath,
+    notionId,
+    entityType: "page_child",
+    tier: null,
+    lastLocalHash: null,
+    lastNotionHash: null,
+    lastNotionVer: null,
+    baseContentId: null,
+    lastSyncTs: new Date().toISOString(),
+  });
+
+  db.update(entityMap)
+    .set({ parentId: parentEntityId })
+    .where(eq(entityMap.id, entity.id))
+    .run();
+
+  return db.select().from(entityMap).where(eq(entityMap.id, entity.id)).get()!;
+}
+
+/**
+ * Get all child entities belonging to a tracked page root.
+ */
+export function getChildrenForPage(db: DB, pageEntityId: number): EntityMap[] {
+  return db
+    .select()
+    .from(entityMap)
+    .where(
+      and(
+        eq(entityMap.parentId, pageEntityId),
+        eq(entityMap.entityType, "page_child"),
         eq(entityMap.deleted, false)
       )
     )

@@ -21,6 +21,7 @@ import { registerHierarchyTools } from "./daemon/tools/hierarchy.js";
 import { registerDiscoveryTools } from "./daemon/tools/discovery.js";
 import { registerDatabaseTools } from "./daemon/tools/databases.js";
 import { registerLinkTool } from "./daemon/tools/link.js";
+import { registerPageTools } from "./daemon/tools/pages.js";
 
 const server = new McpServer({
   name: "interkasten",
@@ -108,6 +109,7 @@ async function main() {
   registerDiscoveryTools(server, ctx);
   registerDatabaseTools(server, ctx, () => syncEngine);
   registerLinkTool(server, ctx);
+  registerPageTools(server, ctx);
 
   // Graceful shutdown
   const cleanup = async () => {

@@ -96,7 +96,27 @@ export const databaseSchemas = sqliteTable("database_schemas", {
     .default(sql`(datetime('now'))`),
 });
 
+/**
+ * Stores tracked Notion page roots for page-level sync.
+ * Each row represents a root page being tracked (child pages stored in entity_map).
+ */
+export const pageTracking = sqliteTable("page_tracking", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  notionPageId: text("notion_page_id").notNull().unique(),
+  title: text("title").notNull(),
+  outputDir: text("output_dir").notNull(), // local directory for page files
+  tokenAlias: text("token_alias"), // named token alias from config (null = default token)
+  recursive: integer("recursive", { mode: "boolean" }).notNull().default(true),
+  maxDepth: integer("max_depth").notNull().default(3),
+  lastFetchedAt: text("last_fetched_at").notNull(),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+});
+
 // Type exports
+export type PageTrackingRow = typeof pageTracking.$inferSelect;
+export type NewPageTrackingRow = typeof pageTracking.$inferInsert;
 export type DatabaseSchemaRow = typeof databaseSchemas.$inferSelect;
 export type NewDatabaseSchemaRow = typeof databaseSchemas.$inferInsert;
 export type EntityMap = typeof entityMap.$inferSelect;

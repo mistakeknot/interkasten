@@ -136,6 +136,21 @@ export function openDatabase(dbPath?: string): { db: DB; sqlite: Database.Databa
     sqlite.exec("ALTER TABLE database_schemas ADD COLUMN token_alias TEXT");
   }
 
+  // Page tracking table (v0.6.x — page-level sync)
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS page_tracking (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      notion_page_id TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      output_dir TEXT NOT NULL,
+      token_alias TEXT,
+      recursive INTEGER NOT NULL DEFAULT 1,
+      max_depth INTEGER NOT NULL DEFAULT 3,
+      last_fetched_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
   // Beads snapshot table for issue sync state tracking (v0.4.x)
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS beads_snapshot (
