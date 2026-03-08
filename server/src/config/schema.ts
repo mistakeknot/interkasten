@@ -29,9 +29,19 @@ export const NotionDatabasesSchema = z.object({
   pagent_workflows: z.string().nullable().default(null),
 });
 
+// Multi-token support: named token aliases → env var references or inline values
+// Values support ${ENV_VAR} syntax via resolveEnvVars() in loader.ts
+export const TokensSchema = z.record(z.string(), z.string()).default({});
+
 export const NotionSchema = z.object({
   workspace_id: z.string().nullable().default(null),
   databases: NotionDatabasesSchema.default({}),
+  // Named token registry: alias → value (supports ${ENV_VAR} syntax)
+  tokens: TokensSchema,
+  // Database-specific token overrides: notion_database_id → token alias
+  database_tokens: z.record(z.string(), z.string()).default({}),
+  // Project-specific token overrides: project_path → token alias
+  project_tokens: z.record(z.string(), z.string()).default({}),
 });
 
 // Backoff configuration

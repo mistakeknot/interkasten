@@ -6,6 +6,7 @@ import { writeFileSync } from "fs";
 import { loadConfig, getinterkastenDir } from "./config/loader.js";
 import { openDatabase, closeDatabase } from "./store/db.js";
 import { NotionClient } from "./sync/notion-client.js";
+import { TokenResolver } from "./sync/token-resolver.js";
 import { SyncEngine } from "./sync/engine.js";
 import { createDaemonContext } from "./daemon/context.js";
 import { registerHealthTools } from "./daemon/tools/health.js";
@@ -40,18 +41,14 @@ async function main() {
   ctx.db = db;
   ctx.sqlite = sqlite;
 
-  // 4. Validate Notion token (if set)
+  // 4. Initialize token resolver and validate default token
   let syncEngine: SyncEngine | null = null;
   const token = process.env.INTERKASTEN_NOTION_TOKEN;
+  const tokenResolver = new TokenResolver(config, token);
+  ctx.tokenResolver = tokenResolver;
+
   if (token) {
-    const notion = new NotionClient({
-      token,
-      concurrency: 3,
-      initialDelayMs: config.sync.backoff.initial_delay_ms,
-      maxDelayMs: config.sync.backoff.max_delay_ms,
-      circuitBreakerThreshold: config.sync.backoff.circuit_breaker_threshold,
-      circuitBreakerCheckInterval: config.sync.backoff.circuit_breaker_check_interval,
-    });
+    const notion = tokenResolver.getClient(token);
 
     const { valid, error } = await notion.validateToken();
     if (!valid) {
@@ -69,6 +66,13 @@ async function main() {
   } else {
     console.error(
       "INTERKASTEN_NOTION_TOKEN not set — run: export INTERKASTEN_NOTION_TOKEN='ntn_...'"
+    );
+  }
+
+  // Log multi-token status
+  if (tokenResolver.hasMultipleTokens()) {
+    console.error(
+      `Multi-token: ${tokenResolver.listAliases().length} named token(s) configured`
     );
   }
 

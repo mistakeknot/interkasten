@@ -89,6 +89,7 @@ export const databaseSchemas = sqliteTable("database_schemas", {
   title: text("title").notNull(),
   schemaJson: text("schema_json").notNull(), // JSON-serialized DatabaseSchema.properties
   outputDir: text("output_dir"), // local directory for row files
+  tokenAlias: text("token_alias"), // named token alias from config (null = default token)
   lastFetchedAt: text("last_fetched_at").notNull(),
   createdAt: text("created_at")
     .notNull()

@@ -13,6 +13,8 @@ export function registerHealthTools(server: McpServer, ctx: DaemonContext): void
       const lastSuccess = ctx.notion?.getLastSuccessTime()?.toISOString() ?? null;
       const consecutiveFailures = ctx.notion?.getConsecutiveFailures() ?? 0;
 
+      const tokenAliases = ctx.tokenResolver?.listAliases() ?? [];
+
       const result = {
         status: "ok",
         uptime_seconds: Math.round(process.uptime()),
@@ -24,6 +26,8 @@ export function registerHealthTools(server: McpServer, ctx: DaemonContext): void
           circuit_state: circuitState,
           last_successful_call: lastSuccess,
           consecutive_failures: consecutiveFailures,
+          multi_token: tokenAliases.length > 0,
+          token_aliases: tokenAliases,
         },
         wal: { pending_entries: walCount },
         memory_mb: Math.round(process.memoryUsage.rss() / 1024 / 1024),

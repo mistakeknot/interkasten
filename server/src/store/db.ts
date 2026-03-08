@@ -129,6 +129,13 @@ export function openDatabase(dbPath?: string): { db: DB; sqlite: Database.Databa
     )
   `);
 
+  // Multi-token support: token_alias column (v0.6.x)
+  const dbSchemaCols = sqlite.pragma("table_info(database_schemas)") as Array<{ name: string }>;
+  const dbSchemaColNames = new Set(dbSchemaCols.map((c) => c.name));
+  if (!dbSchemaColNames.has("token_alias")) {
+    sqlite.exec("ALTER TABLE database_schemas ADD COLUMN token_alias TEXT");
+  }
+
   // Beads snapshot table for issue sync state tracking (v0.4.x)
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS beads_snapshot (

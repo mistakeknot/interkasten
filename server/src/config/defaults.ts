@@ -27,13 +27,23 @@ layout:
   resolve_symlinks: true
   overrides: []
 
-# Notion connection (token from $INTERKASTEN_NOTION_TOKEN env var)
+# Notion connection (default token from $INTERKASTEN_NOTION_TOKEN env var)
 notion:
   workspace_id: null
   databases:
     projects: null
     research_inbox: null
     pagent_workflows: null
+  # Named tokens for multi-workspace sync (use \${ENV_VAR} syntax)
+  # tokens:
+  #   work: \${NOTION_TOKEN_WORK}
+  #   texturaize: \${NOTION_TOKEN_TEXTURAIZE}
+  # Per-database token overrides: database_id → token alias
+  # database_tokens:
+  #   "abc123def456": work
+  # Per-project token overrides: project_path → token alias
+  # project_tokens:
+  #   "~/projects/texturaize": texturaize
 
 # Sync engine
 sync:

@@ -27,6 +27,28 @@ import {
 import { stringifyFrontmatter } from "../../sync/frontmatter.js";
 import { notionBlocksToMarkdown } from "../../sync/translator.js";
 import type { SyncEngine } from "../../sync/engine.js";
+import type { NotionClient } from "../../sync/notion-client.js";
+
+/**
+ * Resolve a NotionClient for a database operation.
+ * Priority: explicit token alias → stored token alias → database_tokens config → default.
+ */
+function resolveClient(
+  ctx: DaemonContext,
+  opts?: { tokenAlias?: string; databaseId?: string },
+): NotionClient | null {
+  // Use token resolver if available (multi-token mode)
+  if (ctx.tokenResolver) {
+    if (opts?.tokenAlias) {
+      return ctx.tokenResolver.getClientFor({ alias: opts.tokenAlias });
+    }
+    if (opts?.databaseId) {
+      return ctx.tokenResolver.getClientFor({ databaseId: opts.databaseId });
+    }
+  }
+  // Fall back to default client
+  return ctx.notion;
+}
 
 export function registerDatabaseTools(
   server: McpServer,
@@ -38,15 +60,37 @@ export function registerDatabaseTools(
    */
   server.tool(
     "interkasten_track_database",
-    "Start tracking a Notion database: fetch schema, pull all rows as markdown files with YAML frontmatter",
+    "Start tracking a Notion database: fetch schema, pull all rows as markdown files with YAML frontmatter. Supports multi-workspace via optional token alias.",
     {
       database_id: z.string().describe("Notion database ID or data source ID to track"),
       output_dir: z.string().optional().describe("Local directory for row files (defaults to ~/.interkasten/databases/<title>)"),
+      token: z.string().optional().describe("Named token alias from config (e.g. 'texturaize'). Uses default token if omitted."),
     },
-    async ({ database_id, output_dir }) => {
-      if (!ctx.notion || !ctx.db) {
+    async ({ database_id, output_dir, token: tokenAlias }) => {
+      if (!ctx.db) {
         return {
-          content: [{ type: "text" as const, text: "Notion client or database not initialized" }],
+          content: [{ type: "text" as const, text: "Database not initialized" }],
+          isError: true,
+        };
+      }
+
+      // Resolve the NotionClient for this database
+      const notion = resolveClient(ctx, { tokenAlias, databaseId: database_id });
+      if (!notion) {
+        const hint = tokenAlias
+          ? `Token alias '${tokenAlias}' not found in config. Check notion.tokens in config.yaml.`
+          : "Notion client not initialized. Set INTERKASTEN_NOTION_TOKEN or configure notion.tokens in config.yaml.";
+        return {
+          content: [{ type: "text" as const, text: hint }],
+          isError: true,
+        };
+      }
+
+      // Validate the token before proceeding (may be a new token we haven't seen)
+      const { valid, error } = await notion.validateToken();
+      if (!valid) {
+        return {
+          content: [{ type: "text" as const, text: `Token validation failed: ${error?.message}. ${error?.remediation}` }],
           isError: true,
         };
       }
@@ -54,8 +98,8 @@ export function registerDatabaseTools(
       // Fetch data source
       let ds: any;
       try {
-        ds = await ctx.notion.call(() =>
-          ctx.notion!.raw.dataSources.retrieve({ data_source_id: database_id } as any)
+        ds = await notion.call(() =>
+          notion.raw.dataSources.retrieve({ data_source_id: database_id } as any)
         );
       } catch (err) {
         return {
@@ -75,20 +119,21 @@ export function registerDatabaseTools(
       // Ensure output dir exists
       mkdirSync(outputPath, { recursive: true });
 
-      // Store schema
+      // Store schema with token alias for future refresh operations
       upsertDatabaseSchema(ctx.db, {
         notionDatabaseId: database_id,
         dataSourceId: ds.id,
         title: schema.title,
         schemaJson: JSON.stringify(schema.properties),
         outputDir: outputPath,
+        tokenAlias: tokenAlias ?? null,
       });
 
       // Register database entity
       const dbEntity = registerDatabase(ctx.db, outputPath, database_id);
 
       // Fetch all rows
-      const rows = await ctx.notion.queryDataSource(ds.id);
+      const rows = await notion.queryDataSource(ds.id);
 
       // Track filenames for dedup
       const usedFilenames = new Set<string>();
@@ -109,7 +154,7 @@ export function registerDatabaseTools(
         // Fetch body
         let body = "";
         try {
-          body = await notionBlocksToMarkdown(ctx.notion!.raw, row.id);
+          body = await notionBlocksToMarkdown(notion.raw, row.id);
         } catch {
           // Some rows have no body
         }
@@ -147,6 +192,8 @@ export function registerDatabaseTools(
         .map(([name, p]) => `  ${name}: ${p.type}`)
         .join("\n");
 
+      const tokenInfo = tokenAlias ? `\nToken: ${tokenAlias}` : "";
+
       return {
         content: [{
           type: "text" as const,
@@ -156,7 +203,8 @@ export function registerDatabaseTools(
             `Output: ${outputPath}`,
             `Rows pulled: ${pulledCount}`,
             `Properties:\n${propList}`,
-          ].join("\n"),
+            tokenInfo,
+          ].filter(Boolean).join("\n"),
         }],
       };
     }
@@ -216,7 +264,7 @@ export function registerDatabaseTools(
    */
   server.tool(
     "interkasten_list_databases",
-    "List all tracked Notion databases with row counts, schema details, and sync status",
+    "List all tracked Notion databases with row counts, schema details, sync status, and token alias",
     {},
     async () => {
       if (!ctx.db) {
@@ -244,6 +292,7 @@ export function registerDatabaseTools(
         lines.push(`  ID: ${schema.notionDatabaseId}`);
         lines.push(`  Data Source: ${schema.dataSourceId}`);
         lines.push(`  Output: ${schema.outputDir ?? "(not set)"}`);
+        lines.push(`  Token: ${schema.tokenAlias ?? "(default)"}`);
         lines.push(`  Properties: ${propCount}`);
         lines.push(`  Tracked rows: ${rowCount}`);
         lines.push(`  Last fetched: ${schema.lastFetchedAt}`);
@@ -258,17 +307,18 @@ export function registerDatabaseTools(
 
   /**
    * Refresh a tracked database: re-fetch schema, sync new/changed/deleted rows.
+   * Uses the stored token alias from when the database was tracked.
    */
   server.tool(
     "interkasten_refresh_database",
-    "Re-sync a tracked database: update schema, pull new/changed rows, detect deleted rows",
+    "Re-sync a tracked database: update schema, pull new/changed rows, detect deleted rows. Uses the stored token alias.",
     {
       database_id: z.string().describe("Notion database ID to refresh"),
     },
     async ({ database_id }) => {
-      if (!ctx.notion || !ctx.db) {
+      if (!ctx.db) {
         return {
-          content: [{ type: "text" as const, text: "Notion client or database not initialized" }],
+          content: [{ type: "text" as const, text: "Database not initialized" }],
           isError: true,
         };
       }
@@ -281,11 +331,26 @@ export function registerDatabaseTools(
         };
       }
 
+      // Resolve client using stored token alias or config-level database_tokens
+      const notion = resolveClient(ctx, {
+        tokenAlias: schemaRow.tokenAlias ?? undefined,
+        databaseId: database_id,
+      });
+      if (!notion) {
+        const hint = schemaRow.tokenAlias
+          ? `Stored token alias '${schemaRow.tokenAlias}' not found. Update notion.tokens in config.yaml.`
+          : "Notion client not initialized.";
+        return {
+          content: [{ type: "text" as const, text: hint }],
+          isError: true,
+        };
+      }
+
       // Re-fetch data source for schema
       let ds: any;
       try {
-        ds = await ctx.notion.call(() =>
-          ctx.notion!.raw.dataSources.retrieve({ data_source_id: schemaRow.dataSourceId } as any)
+        ds = await notion.call(() =>
+          notion.raw.dataSources.retrieve({ data_source_id: schemaRow.dataSourceId } as any)
         );
       } catch (err) {
         return {
@@ -312,7 +377,7 @@ export function registerDatabaseTools(
       });
 
       // Fetch all rows
-      const rows = await ctx.notion.queryDataSource(ds.id);
+      const rows = await notion.queryDataSource(ds.id);
       const remoteRowIds = new Set(rows.map((r) => r.id));
 
       // Get existing tracked rows
@@ -351,7 +416,7 @@ export function registerDatabaseTools(
 
           let body = "";
           try {
-            body = await notionBlocksToMarkdown(ctx.notion!.raw, row.id);
+            body = await notionBlocksToMarkdown(notion.raw, row.id);
           } catch {
             // No body
           }

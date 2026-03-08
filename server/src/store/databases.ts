@@ -11,6 +11,7 @@ export interface UpsertDatabaseSchemaInput {
   title: string;
   schemaJson: string;
   outputDir?: string | null;
+  tokenAlias?: string | null;
 }
 
 /**
@@ -33,6 +34,7 @@ export function upsertDatabaseSchema(
         title: data.title,
         schemaJson: data.schemaJson,
         outputDir: data.outputDir ?? existing.outputDir,
+        tokenAlias: data.tokenAlias !== undefined ? data.tokenAlias : existing.tokenAlias,
         lastFetchedAt: new Date().toISOString(),
       })
       .where(eq(databaseSchemas.id, existing.id))
@@ -53,6 +55,7 @@ export function upsertDatabaseSchema(
       title: data.title,
       schemaJson: data.schemaJson,
       outputDir: data.outputDir ?? null,
+      tokenAlias: data.tokenAlias ?? null,
       lastFetchedAt: new Date().toISOString(),
     })
     .returning()
