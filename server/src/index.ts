@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { resolve } from "path";
-import { writeFileSync } from "fs";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "fs";
 
 import { loadConfig, getinterkastenDir } from "./config/loader.js";
 import { openDatabase, closeDatabase } from "./store/db.js";
@@ -77,8 +77,26 @@ async function main() {
     );
   }
 
-  // 6. Write PID/heartbeat file
+  // 6. Clean up stale processes + write PID/heartbeat file
   const pidFile = resolve(interkastenDir, "daemon.pid");
+  try {
+    if (existsSync(pidFile)) {
+      const prev = JSON.parse(readFileSync(pidFile, "utf-8"));
+      if (prev.pid && prev.pid !== process.pid) {
+        // Check if old process is still alive
+        try {
+          process.kill(prev.pid, 0); // signal 0 = existence check
+          // Process is alive — send SIGTERM so it cleans up
+          console.error(`interkasten: killing stale process ${prev.pid}`);
+          process.kill(prev.pid, "SIGTERM");
+        } catch {
+          // Process already dead — just clean up the file
+        }
+      }
+    }
+  } catch {
+    // PID file corrupt or unreadable — proceed
+  }
   writeFileSync(pidFile, JSON.stringify({ pid: process.pid, started: new Date().toISOString() }));
 
   const heartbeatInterval = setInterval(() => {
@@ -112,14 +130,23 @@ async function main() {
   registerPageTools(server, ctx);
 
   // Graceful shutdown
+  let cleaningUp = false;
   const cleanup = async () => {
+    if (cleaningUp) return; // prevent double-cleanup
+    cleaningUp = true;
     clearInterval(heartbeatInterval);
     if (syncEngine) await syncEngine.stop();
     if (ctx.sqlite) closeDatabase(ctx.sqlite);
+    try { unlinkSync(pidFile); } catch { /* already gone */ }
     process.exit(0);
   };
   process.on("SIGINT", () => { cleanup(); });
   process.on("SIGTERM", () => { cleanup(); });
+
+  // Exit when MCP client disconnects (stdin closes).
+  // Without this, background timers keep the process alive indefinitely.
+  process.stdin.on("end", () => { cleanup(); });
+  process.stdin.on("close", () => { cleanup(); });
 
   // 8. Connect MCP transport
   const transport = new StdioServerTransport();
