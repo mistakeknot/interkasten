@@ -1,10 +1,10 @@
-# interkasten:doctor (compact)
+# interkasten:interkasten-doctor (compact)
 
 Self-diagnosis and health check for interkasten — cascading checklist verifying installation and operation.
 
 ## When to Invoke
 
-"check interkasten", "interkasten health", "is interkasten working", "diagnose interkasten", or `/interkasten:doctor`.
+"check interkasten", "interkasten health", "is interkasten working", "diagnose interkasten", or `/interkasten:interkasten-doctor`.
 
 ## Workflow
 

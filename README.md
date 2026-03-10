@@ -37,7 +37,7 @@ Onboard a project:
 Check sync health:
 
 ```
-/interkasten:doctor
+/interkasten:interkasten-doctor
 ```
 
 The MCP server starts automatically and provides 27 tools for programmatic Notion interaction. A SessionStart hook shows brief sync status; a Stop hook warns about pending sync operations.

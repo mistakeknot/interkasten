@@ -1,4 +1,5 @@
 ---
+name: interkasten-doctor
 description: "Self-Diagnosis & Health Check"
 ---
 
@@ -8,7 +9,7 @@ Run a cascading diagnostic checklist to verify interkasten is correctly installe
 
 ## Trigger
 
-Use when: user says "check interkasten", "interkasten health", "is interkasten working", "diagnose interkasten", or invokes `/interkasten:doctor`.
+Use when: user says "check interkasten", "interkasten health", "is interkasten working", "diagnose interkasten", or invokes `/interkasten:interkasten-doctor`.
 
 ## Workflow
 
