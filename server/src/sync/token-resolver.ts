@@ -2,12 +2,14 @@ import { resolve } from "path";
 import { homedir } from "os";
 import type { Config } from "../config/schema.js";
 import { NotionClient, type NotionClientOptions } from "./notion-client.js";
+import { discoverNotionMcpToken } from "../config/notion-mcp-discovery.js";
 
 /**
  * Resolves Notion tokens using a priority chain:
  *   1. Database-specific override (notion.database_tokens)
  *   2. Project-specific override (notion.project_tokens)
  *   3. Global default (INTERKASTEN_NOTION_TOKEN env var)
+ *   4. Auto-discovered from Notion MCP plugin (.mcp.json)
  *
  * Manages a pool of NotionClient instances keyed by resolved token,
  * so each workspace gets its own rate limiter and circuit breaker.
@@ -43,7 +45,7 @@ export class TokenResolver {
 
   /**
    * Resolve the token for a specific database ID.
-   * Chain: database_tokens[databaseId] → default token.
+   * Chain: database_tokens[databaseId] → default token → auto-discovered.
    */
   resolveForDatabase(databaseId: string): string | undefined {
     const alias = this.config.notion.database_tokens[databaseId];
@@ -51,12 +53,12 @@ export class TokenResolver {
       const resolved = this.resolveAlias(alias);
       if (resolved) return resolved;
     }
-    return this.defaultToken;
+    return this.defaultToken ?? this.tryAutoDiscover();
   }
 
   /**
    * Resolve the token for a project path.
-   * Chain: project_tokens[path] → default token.
+   * Chain: project_tokens[path] → default token → auto-discovered.
    * Normalizes paths (expands ~) for comparison.
    */
   resolveForProject(projectPath: string): string | undefined {
@@ -67,7 +69,7 @@ export class TokenResolver {
         if (resolved) return resolved;
       }
     }
-    return this.defaultToken;
+    return this.defaultToken ?? this.tryAutoDiscover();
   }
 
   /**
@@ -95,8 +97,21 @@ export class TokenResolver {
       if (token && token !== this.defaultToken) return token;
     }
 
-    // 4. Global default
-    return this.defaultToken;
+    // 4. Global default / 5. Auto-discover from Notion MCP plugin (.mcp.json)
+    return this.defaultToken ?? this.tryAutoDiscover();
+  }
+
+  /**
+   * Try auto-discovering a token from the Notion MCP plugin.
+   * Caches the result as defaultToken on success.
+   */
+  private tryAutoDiscover(): string | undefined {
+    const discovered = discoverNotionMcpToken();
+    if (discovered) {
+      this.defaultToken = discovered;
+      return discovered;
+    }
+    return undefined;
   }
 
   /**
@@ -117,11 +132,12 @@ export class TokenResolver {
   }
 
   /**
-   * Get the default NotionClient (for the global token).
+   * Get the default NotionClient (for the global token or auto-discovered token).
    */
   getDefaultClient(): NotionClient | null {
-    if (!this.defaultToken) return null;
-    return this.getClient(this.defaultToken);
+    const token = this.defaultToken ?? this.tryAutoDiscover();
+    if (!token) return null;
+    return this.getClient(token);
   }
 
   /**
