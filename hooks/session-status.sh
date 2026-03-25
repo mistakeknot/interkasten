@@ -3,7 +3,8 @@
 #
 # Input: Notification JSON on stdin (SessionStart event)
 # Output: JSON with additionalContext if interkasten is configured
-set -euo pipefail
+set -uo pipefail
+trap 'exit 0' ERR
 
 CONFIG_FILE="${HOME}/.interkasten/config.yaml"
 DB_FILE="${HOME}/.interkasten/interkasten.db"

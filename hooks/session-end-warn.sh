@@ -3,7 +3,8 @@
 #
 # Input: Notification JSON on stdin (Stop event)
 # Output: JSON with additionalContext if there are pending operations
-set -euo pipefail
+set -uo pipefail
+trap 'exit 0' ERR
 
 DB_FILE="${HOME}/.interkasten/interkasten.db"
 
