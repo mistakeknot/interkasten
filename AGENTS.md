@@ -32,24 +32,6 @@ Integration tests require `INTERKASTEN_TEST_TOKEN` env var (Notion API token for
 | Skills & Hooks | [agents/skills-hooks.md](agents/skills-hooks.md) | 3 skills (layout, onboard, doctor), 3 hooks (Setup, SessionStart, Stop) |
 | Testing & Config | [agents/testing-config.md](agents/testing-config.md) | Test suites, config reference, environment, common tasks, gotchas, status |
 
-## Philosophy Alignment Protocol
-
-Review [`PHILOSOPHY.md`](../../PHILOSOPHY.md) during:
-- Intake/scoping
-- Brainstorming
-- Planning
-- Execution kickoff
-- Review/gates
-- Handoff/retrospective
-
-For brainstorming/planning outputs, add two short lines:
-- **Alignment:** one sentence on how the proposal supports the module's purpose within Demarch's philosophy.
-- **Conflict/Risk:** one sentence on any tension with philosophy (or 'none').
-
-If a high-value change conflicts with philosophy, either:
-- adjust the plan to align, or
-- create follow-up work to update `PHILOSOPHY.md` explicitly.
-
 ## Session Completion
 
 > See `/root/projects/Interverse/AGENTS.md` for session completion protocol.
