@@ -1,7 +1,7 @@
 {
   "name": "interkasten",
   "version": "0.4.25",
-  "description": "Living bridge between your projects folder and Notion — bidirectional sync with adaptive AI documentation and pagent workflow automation",
+  "description": "Living bridge between your projects folder and Notion \u2014 bidirectional sync with adaptive AI documentation and pagent workflow automation",
   "author": {
     "name": "mistakeknot",
     "email": "mistakeknot@vibeguider.org"
@@ -35,5 +35,11 @@
     "./commands/onboard.md",
     "./commands/doctor.md",
     "./commands/webhook-setup.md"
+  ],
+  "peerDependencies": [
+    "interdoc",
+    "interflux",
+    "interpath",
+    "interwatch"
   ]
 }
