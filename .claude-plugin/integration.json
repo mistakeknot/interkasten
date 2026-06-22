@@ -1,0 +1,12 @@
+{
+  "name": "interkasten",
+  "companions": {
+    "recommended": [
+      "interdoc",
+      "interflux",
+      "interpath",
+      "interwatch"
+    ],
+    "optional": []
+  }
+}

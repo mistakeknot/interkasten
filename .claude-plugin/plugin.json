@@ -35,11 +35,5 @@
     "./commands/onboard.md",
     "./commands/doctor.md",
     "./commands/webhook-setup.md"
-  ],
-  "peerDependencies": [
-    "interdoc",
-    "interflux",
-    "interpath",
-    "interwatch"
   ]
 }
