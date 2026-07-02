@@ -10,7 +10,8 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "webhook-setup": "node dist/cli/webhook-setup.js"
+    "webhook-setup": "node dist/cli/webhook-setup.js",
+    "webhook-daemon": "node dist/webhook-daemon.js"
   },
   "engines": {
     "node": ">=20.0.0"

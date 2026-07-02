@@ -1,0 +1,24 @@
+[Unit]
+Description=Interkasten Notion Webhook Daemon
+Documentation=https://github.com/mistakeknot/interkasten
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mk
+WorkingDirectory=/home/mk/projects/Sylveste/interverse/interkasten
+EnvironmentFile=/home/mk/.interkasten/.env
+ExecStart=/home/mk/projects/Sylveste/interverse/interkasten/scripts/start-webhook.sh
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=interkasten-webhook
+
+# Graceful shutdown
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
