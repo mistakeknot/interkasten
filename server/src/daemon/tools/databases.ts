@@ -16,9 +16,7 @@ import {
   lookupByNotionId,
 } from "../../sync/entity-map.js";
 import { softDeleteEntity } from "../../store/entities.js";
-import {
-  extractDatabaseSchema,
-} from "../../sync/discovery.js";
+import { extractDatabaseSchema } from "../../sync/discovery.js";
 import {
   rowToFrontmatter,
   sanitizeTitle,
@@ -62,20 +60,37 @@ export function registerDatabaseTools(
     "interkasten_track_database",
     "Start tracking a Notion database: fetch schema, pull all rows as markdown files with YAML frontmatter. Supports multi-workspace via optional token alias.",
     {
-      database_id: z.string().describe("Notion database ID or data source ID to track"),
-      output_dir: z.string().optional().describe("Local directory for row files (defaults to ~/.interkasten/databases/<title>)"),
-      token: z.string().optional().describe("Named token alias from config (e.g. 'texturaize'). Uses default token if omitted."),
+      database_id: z
+        .string()
+        .describe("Notion database ID or data source ID to track"),
+      output_dir: z
+        .string()
+        .optional()
+        .describe(
+          "Local directory for row files (defaults to ~/.interkasten/databases/<title>)",
+        ),
+      token: z
+        .string()
+        .optional()
+        .describe(
+          "Named token alias from config (e.g. 'texturaize'). Uses default token if omitted.",
+        ),
     },
     async ({ database_id, output_dir, token: tokenAlias }) => {
       if (!ctx.db) {
         return {
-          content: [{ type: "text" as const, text: "Database not initialized" }],
+          content: [
+            { type: "text" as const, text: "Database not initialized" },
+          ],
           isError: true,
         };
       }
 
       // Resolve the NotionClient for this database
-      const notion = resolveClient(ctx, { tokenAlias, databaseId: database_id });
+      const notion = resolveClient(ctx, {
+        tokenAlias,
+        databaseId: database_id,
+      });
       if (!notion) {
         const hint = tokenAlias
           ? `Token alias '${tokenAlias}' not found in config. Check notion.tokens in config.yaml.`
@@ -90,31 +105,74 @@ export function registerDatabaseTools(
       const { valid, error } = await notion.validateToken();
       if (!valid) {
         return {
-          content: [{ type: "text" as const, text: `Token validation failed: ${error?.message}. ${error?.remediation}` }],
+          content: [
+            {
+              type: "text" as const,
+              text: `Token validation failed: ${error?.message}. ${error?.remediation}`,
+            },
+          ],
           isError: true,
         };
       }
 
-      // Fetch data source
+      // Fetch data source — resolve database_id to data_source_id if needed.
+      // Users typically paste the database_id from Notion URLs, but the schema
+      // and row data live under the data_source_id.
       let ds: any;
+      let resolvedDatabaseId = database_id;
       try {
         ds = await notion.call(() =>
-          notion.raw.dataSources.retrieve({ data_source_id: database_id } as any)
+          notion.raw.dataSources.retrieve({
+            data_source_id: database_id,
+          } as any),
         );
-      } catch (err) {
-        return {
-          content: [{ type: "text" as const, text: `Failed to retrieve data source: ${(err as Error).message}` }],
-          isError: true,
-        };
+      } catch {
+        // database_id may be a database ID, not a data source ID.
+        // Look up the database to find its data_source_id.
+        try {
+          const db: any = await notion.call(() =>
+            notion.raw.databases.retrieve({ database_id } as any),
+          );
+          const dataSources: Array<{ id: string }> = db.data_sources ?? [];
+          if (dataSources.length === 0) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Database ${database_id} has no data sources. It may be a legacy database or the integration lacks access.`,
+                },
+              ],
+              isError: true,
+            };
+          }
+          resolvedDatabaseId = database_id;
+          ds = await notion.call(() =>
+            notion.raw.dataSources.retrieve({
+              data_source_id: dataSources[0]!.id,
+            } as any),
+          );
+        } catch (err2) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Failed to retrieve database or data source: ${(err2 as Error).message}`,
+              },
+            ],
+            isError: true,
+          };
+        }
       }
 
       const schema = extractDatabaseSchema(ds);
-      const outputPath = output_dir ?? resolve(
-        process.env.HOME ?? "~",
-        ".interkasten",
-        "databases",
-        sanitizeTitle(schema.title),
-      );
+      const outputPath =
+        output_dir ??
+        resolve(
+          process.env.HOME ?? "~",
+          ".interkasten",
+          "databases",
+          sanitizeTitle(schema.title),
+        );
 
       // Ensure output dir exists
       mkdirSync(outputPath, { recursive: true });
@@ -159,7 +217,10 @@ export function registerDatabaseTools(
           // Some rows have no body
         }
 
-        const content = stringifyFrontmatter(fm as Record<string, unknown>, body);
+        const content = stringifyFrontmatter(
+          fm as Record<string, unknown>,
+          body,
+        );
 
         // Write file
         const { writeFileSync } = await import("fs");
@@ -195,19 +256,23 @@ export function registerDatabaseTools(
       const tokenInfo = tokenAlias ? `\nToken: ${tokenAlias}` : "";
 
       return {
-        content: [{
-          type: "text" as const,
-          text: [
-            `Tracked database: ${schema.title}`,
-            `Data source: ${ds.id}`,
-            `Output: ${outputPath}`,
-            `Rows pulled: ${pulledCount}`,
-            `Properties:\n${propList}`,
-            tokenInfo,
-          ].filter(Boolean).join("\n"),
-        }],
+        content: [
+          {
+            type: "text" as const,
+            text: [
+              `Tracked database: ${schema.title}`,
+              `Data source: ${ds.id}`,
+              `Output: ${outputPath}`,
+              `Rows pulled: ${pulledCount}`,
+              `Properties:\n${propList}`,
+              tokenInfo,
+            ]
+              .filter(Boolean)
+              .join("\n"),
+          },
+        ],
       };
-    }
+    },
   );
 
   /**
@@ -222,7 +287,9 @@ export function registerDatabaseTools(
     async ({ database_id }) => {
       if (!ctx.db) {
         return {
-          content: [{ type: "text" as const, text: "Database not initialized" }],
+          content: [
+            { type: "text" as const, text: "Database not initialized" },
+          ],
           isError: true,
         };
       }
@@ -230,7 +297,12 @@ export function registerDatabaseTools(
       const schemaRow = getDatabaseSchema(ctx.db, database_id);
       if (!schemaRow) {
         return {
-          content: [{ type: "text" as const, text: `Database ${database_id} is not tracked` }],
+          content: [
+            {
+              type: "text" as const,
+              text: `Database ${database_id} is not tracked`,
+            },
+          ],
           isError: true,
         };
       }
@@ -251,12 +323,14 @@ export function registerDatabaseTools(
       removeDatabaseSchema(ctx.db, database_id);
 
       return {
-        content: [{
-          type: "text" as const,
-          text: `Untracked database: ${schemaRow.title}\nSoft-deleted ${deletedRows} row entities + database entity\nSchema removed`,
-        }],
+        content: [
+          {
+            type: "text" as const,
+            text: `Untracked database: ${schemaRow.title}\nSoft-deleted ${deletedRows} row entities + database entity\nSchema removed`,
+          },
+        ],
       };
-    }
+    },
   );
 
   /**
@@ -269,7 +343,9 @@ export function registerDatabaseTools(
     async () => {
       if (!ctx.db) {
         return {
-          content: [{ type: "text" as const, text: "Database not initialized" }],
+          content: [
+            { type: "text" as const, text: "Database not initialized" },
+          ],
           isError: true,
         };
       }
@@ -277,14 +353,21 @@ export function registerDatabaseTools(
       const tracked = listTrackedDatabases(ctx.db);
       if (tracked.length === 0) {
         return {
-          content: [{ type: "text" as const, text: "No databases tracked. Use interkasten_track_database to start." }],
+          content: [
+            {
+              type: "text" as const,
+              text: "No databases tracked. Use interkasten_track_database to start.",
+            },
+          ],
         };
       }
 
       const lines: string[] = [];
       for (const schema of tracked) {
         const dbEntity = lookupByNotionId(ctx.db!, schema.notionDatabaseId);
-        const rowCount = dbEntity ? getRowsForDatabase(ctx.db!, dbEntity.id).length : 0;
+        const rowCount = dbEntity
+          ? getRowsForDatabase(ctx.db!, dbEntity.id).length
+          : 0;
         const props = JSON.parse(schema.schemaJson);
         const propCount = Object.keys(props).length;
 
@@ -302,7 +385,7 @@ export function registerDatabaseTools(
       return {
         content: [{ type: "text" as const, text: lines.join("\n") }],
       };
-    }
+    },
   );
 
   /**
@@ -318,7 +401,9 @@ export function registerDatabaseTools(
     async ({ database_id }) => {
       if (!ctx.db) {
         return {
-          content: [{ type: "text" as const, text: "Database not initialized" }],
+          content: [
+            { type: "text" as const, text: "Database not initialized" },
+          ],
           isError: true,
         };
       }
@@ -326,7 +411,12 @@ export function registerDatabaseTools(
       const schemaRow = getDatabaseSchema(ctx.db, database_id);
       if (!schemaRow) {
         return {
-          content: [{ type: "text" as const, text: `Database ${database_id} is not tracked. Use interkasten_track_database first.` }],
+          content: [
+            {
+              type: "text" as const,
+              text: `Database ${database_id} is not tracked. Use interkasten_track_database first.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -350,22 +440,31 @@ export function registerDatabaseTools(
       let ds: any;
       try {
         ds = await notion.call(() =>
-          notion.raw.dataSources.retrieve({ data_source_id: schemaRow.dataSourceId } as any)
+          notion.raw.dataSources.retrieve({
+            data_source_id: schemaRow.dataSourceId,
+          } as any),
         );
       } catch (err) {
         return {
-          content: [{ type: "text" as const, text: `Failed to retrieve data source: ${(err as Error).message}` }],
+          content: [
+            {
+              type: "text" as const,
+              text: `Failed to retrieve data source: ${(err as Error).message}`,
+            },
+          ],
           isError: true,
         };
       }
 
       const schema = extractDatabaseSchema(ds);
-      const outputPath = schemaRow.outputDir ?? resolve(
-        process.env.HOME ?? "~",
-        ".interkasten",
-        "databases",
-        sanitizeTitle(schema.title),
-      );
+      const outputPath =
+        schemaRow.outputDir ??
+        resolve(
+          process.env.HOME ?? "~",
+          ".interkasten",
+          "databases",
+          sanitizeTitle(schema.title),
+        );
 
       // Update stored schema
       upsertDatabaseSchema(ctx.db, {
@@ -382,7 +481,9 @@ export function registerDatabaseTools(
 
       // Get existing tracked rows
       const dbEntity = lookupByNotionId(ctx.db, database_id);
-      const existingRows = dbEntity ? getRowsForDatabase(ctx.db, dbEntity.id) : [];
+      const existingRows = dbEntity
+        ? getRowsForDatabase(ctx.db, dbEntity.id)
+        : [];
 
       let newCount = 0;
       let updatedCount = 0;
@@ -421,7 +522,10 @@ export function registerDatabaseTools(
             // No body
           }
 
-          const content = stringifyFrontmatter(fm as Record<string, unknown>, body);
+          const content = stringifyFrontmatter(
+            fm as Record<string, unknown>,
+            body,
+          );
           const { writeFileSync } = await import("fs");
           writeFileSync(filePath, content, "utf-8");
 
@@ -458,17 +562,19 @@ export function registerDatabaseTools(
       writeFileSync(join(outputPath, "_index.md"), indexContent, "utf-8");
 
       return {
-        content: [{
-          type: "text" as const,
-          text: [
-            `Refreshed: ${schema.title}`,
-            `New rows: ${newCount}`,
-            `Updated rows: ${updatedCount}`,
-            `Deleted rows: ${deletedCount}`,
-            `Total rows: ${rows.length}`,
-          ].join("\n"),
-        }],
+        content: [
+          {
+            type: "text" as const,
+            text: [
+              `Refreshed: ${schema.title}`,
+              `New rows: ${newCount}`,
+              `Updated rows: ${updatedCount}`,
+              `Deleted rows: ${deletedCount}`,
+              `Total rows: ${rows.length}`,
+            ].join("\n"),
+          },
+        ],
       };
-    }
+    },
   );
 }

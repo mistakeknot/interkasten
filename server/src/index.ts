@@ -9,6 +9,8 @@ import { NotionClient } from "./sync/notion-client.js";
 import { TokenResolver } from "./sync/token-resolver.js";
 import { discoverNotionMcpToken } from "./config/notion-mcp-discovery.js";
 import { SyncEngine } from "./sync/engine.js";
+import { DurableQueue } from "./sync/durable-queue.js";
+import { WebhookServer } from "./sync/webhook-server.js";
 import { createDaemonContext } from "./daemon/context.js";
 import { registerHealthTools } from "./daemon/tools/health.js";
 import { registerConfigTools } from "./daemon/tools/config.js";
@@ -125,6 +127,7 @@ async function main() {
 
   // 4. Initialize token resolver and validate default token
   let syncEngine: SyncEngine | null = null;
+  let webhookServer: WebhookServer | null = null;
   let token = process.env.INTERKASTEN_NOTION_TOKEN;
   let tokenSource = "INTERKASTEN_NOTION_TOKEN";
 
@@ -141,6 +144,10 @@ async function main() {
   const tokenResolver = new TokenResolver(config, token);
   ctx.tokenResolver = tokenResolver;
 
+  // Create durable queue for webhook + crash recovery
+  const queueDbPath = resolve(interkastenDir, "queue.db");
+  const durableQueue = new DurableQueue(queueDbPath);
+
   if (token) {
     const notion = tokenResolver.getClient(token);
 
@@ -153,9 +160,42 @@ async function main() {
     } else {
       ctx.notion = notion;
 
-      // 5. Start sync engine
-      syncEngine = new SyncEngine({ config, db, notion });
+      // 5. Start sync engine with durable queue
+      syncEngine = new SyncEngine({ config, db, notion, durableQueue });
       syncEngine.start();
+
+      // 6. Start webhook server if enabled
+      if (config.sync.webhook.enabled) {
+        try {
+          webhookServer = new WebhookServer(
+            durableQueue,
+            db,
+            {
+              port: config.sync.webhook.port,
+              path: config.sync.webhook.path,
+              secret: config.sync.webhook.secret,
+              batchWindowMs: config.sync.webhook.batch_window_ms,
+              scopeRootIds: config.sync.scope_root_ids,
+              scopeExcludeIds: config.sync.scope_exclude_ids,
+            },
+            config.sync.cloud_bridge.url
+              ? {
+                  url: config.sync.cloud_bridge.url!,
+                  token: config.sync.cloud_bridge.token!,
+                  pollMs: config.sync.cloud_bridge.poll_ms,
+                  batchSize: config.sync.cloud_bridge.batch_size,
+                }
+              : undefined,
+          );
+          await webhookServer.start();
+          console.error(
+            `Webhook server listening on http://localhost:${config.sync.webhook.port}${config.sync.webhook.path}`
+          );
+        } catch (err) {
+          console.error(`Webhook server failed to start: ${(err as Error).message}`);
+          // Non-fatal — MCP daemon still works without webhooks
+        }
+      }
     }
   } else {
     console.error(
@@ -217,6 +257,9 @@ async function main() {
     cleaningUp = true;
     clearInterval(heartbeatInterval);
     clearInterval(watchdogInterval);
+    if (webhookServer) {
+      try { await webhookServer.stop(); } catch { /* best effort */ }
+    }
     if (syncEngine) {
       try { await syncEngine.stop(); } catch { /* best effort */ }
     }

@@ -1,13 +1,19 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { DaemonContext } from "../context.js";
-import { setConfigValue, loadConfig } from "../../config/loader.js";
+import { setConfigValue, loadConfig, findProjectConfig, type ConfigScope } from "../../config/loader.js";
 import { TokenResolver } from "../../sync/token-resolver.js";
+
+const ScopeParam = z
+  .enum(["global", "project"])
+  .optional()
+  .default("global")
+  .describe("Config scope: 'global' writes to ~/.interkasten/config.yaml, 'project' writes to nearest .interkasten.yaml (creates in CWD if none exists)");
 
 export function registerConfigTools(server: McpServer, ctx: DaemonContext): void {
   server.tool(
     "interkasten_config_get",
-    "Read current interkasten configuration",
+    "Read current interkasten configuration (merged: project overrides global)",
     {
       key: z
         .string()
@@ -16,11 +22,15 @@ export function registerConfigTools(server: McpServer, ctx: DaemonContext): void
     },
     async ({ key }) => {
       const config = ctx.config;
+      const projectConfigPath = findProjectConfig();
 
       if (!key) {
+        const header = projectConfigPath
+          ? `# Merged config (project: ${projectConfigPath})\n`
+          : "# Global config (no project-level .interkasten.yaml found)\n";
         return {
           content: [
-            { type: "text" as const, text: JSON.stringify(config, null, 2) },
+            { type: "text" as const, text: header + JSON.stringify(config, null, 2) },
           ],
         };
       }
@@ -50,21 +60,23 @@ export function registerConfigTools(server: McpServer, ctx: DaemonContext): void
 
   server.tool(
     "interkasten_config_set",
-    "Update an interkasten configuration value",
+    "Update an interkasten configuration value. Use scope='project' to write to .interkasten.yaml (project-level), or 'global' for ~/.interkasten/config.yaml.",
     {
       key: z.string().describe("Dot-separated config key (e.g. 'sync.poll_interval')"),
       value: z.union([z.string(), z.number(), z.boolean()]).describe("New value"),
+      scope: ScopeParam,
     },
-    async ({ key, value }) => {
+    async ({ key, value, scope }) => {
       try {
-        const updated = setConfigValue(key, value);
+        const updated = setConfigValue(key, value, scope as ConfigScope);
         ctx.config = updated;
 
+        const target = scope === "project" ? ".interkasten.yaml" : "~/.interkasten/config.yaml";
         return {
           content: [
             {
               type: "text" as const,
-              text: `Updated "${key}" to ${JSON.stringify(value)}`,
+              text: `Updated "${key}" to ${JSON.stringify(value)} in ${target}`,
             },
           ],
         };
@@ -84,17 +96,18 @@ export function registerConfigTools(server: McpServer, ctx: DaemonContext): void
 
   server.tool(
     "interkasten_config_save",
-    "Save a named Notion token for multi-workspace sync. Value should use ${ENV_VAR} syntax to avoid storing secrets in config.",
+    "Save a named Notion token for multi-workspace sync. Value should use ${ENV_VAR} syntax to avoid storing secrets in config. Use scope='project' to keep the token scoped to this project.",
     {
       alias: z.string().describe("Token alias name (e.g. 'texturaize', 'work')"),
       value: z.string().describe("Token value or env var reference (e.g. '${NOTION_TOKEN_WORK}')"),
+      scope: ScopeParam,
     },
-    async ({ alias, value }) => {
+    async ({ alias, value, scope }) => {
       try {
         // Read current tokens, add the new one
         const currentTokens = ctx.config.notion.tokens ?? {};
         const updatedTokens = { ...currentTokens, [alias]: value };
-        const updated = setConfigValue("notion.tokens", updatedTokens);
+        const updated = setConfigValue("notion.tokens", updatedTokens, scope as ConfigScope);
         ctx.config = updated;
 
         // Refresh token resolver with new config
@@ -109,10 +122,11 @@ export function registerConfigTools(server: McpServer, ctx: DaemonContext): void
         const resolved = ctx.tokenResolver?.resolveAlias(alias);
         const status = resolved ? "configured and resolves" : "configured but env var not set";
 
+        const target = scope === "project" ? ".interkasten.yaml" : "~/.interkasten/config.yaml";
         return {
           content: [{
             type: "text" as const,
-            text: `Token '${alias}' saved (${status}). Use it with: interkasten_track_database(database_id, token: '${alias}')`,
+            text: `Token '${alias}' saved to ${target} (${status}). Use it with: interkasten_track_database(database_id, token: '${alias}')`,
           }],
         };
       } catch (err) {

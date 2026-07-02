@@ -80,6 +80,8 @@ export const SyncSchema = z.object({
       path: z.string().default("/webhooks/notion"),
       secret: z.string().default(""),
       batch_window_ms: z.number().int().default(60000),
+      /** Shell command run after each webhook sync batch completes. */
+      post_sync_command: z.string().default(""),
     })
     .default({}),
   cloud_bridge: z
