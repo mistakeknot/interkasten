@@ -1,0 +1,46 @@
+{
+  "name": "interkasten",
+  "version": "0.4.25",
+  "description": "Living bridge between your projects folder and Notion — bidirectional sync with adaptive AI documentation and pagent workflow automation",
+  "license": "MIT",
+  "keywords": [
+    "notion",
+    "sync",
+    "documentation",
+    "pagent",
+    "workflows",
+    "mcp"
+  ],
+  "author": "mistakeknot",
+  "interface": {
+    "displayName": "interkasten",
+    "shortDescription": "Living bridge between your projects folder and Notion — bidirectional sync with adaptive AI documentation and pagent..."
+  },
+  "skills": "./skills/",
+  "commands": "./commands/",
+  "mcpServers": {
+    "interkasten": {
+      "command": "bash",
+      "args": [
+        "${KIMI_PLUGIN_ROOT}/scripts/start-mcp.sh"
+      ]
+    }
+  },
+  "hooks": [
+    {
+      "event": "SessionStart",
+      "command": "bash \"${KIMI_PLUGIN_ROOT}/hooks/setup.sh\"",
+      "timeout": 30
+    },
+    {
+      "event": "SessionStart",
+      "command": "bash \"${KIMI_PLUGIN_ROOT}/hooks/session-status.sh\"",
+      "timeout": 5
+    },
+    {
+      "event": "Stop",
+      "command": "bash \"${KIMI_PLUGIN_ROOT}/hooks/session-end-warn.sh\"",
+      "timeout": 5
+    }
+  ]
+}
