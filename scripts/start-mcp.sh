@@ -39,6 +39,27 @@ if [ -z "${INTERKASTEN_NOTION_TOKEN:-}" ]; then
   done
 fi
 
+# Parse an ISO8601 UTC timestamp (e.g. heartbeat, from JS `.toISOString()`:
+# YYYY-MM-DDTHH:MM:SS.sssZ) to epoch seconds, portably. GNU `date -d` first;
+# BSD `date -j -u -f` fallback (fractional seconds and Z/+00:00 suffixes
+# normalized). Echoes empty on failure (Sylveste-a3a).
+_start_mcp_iso_to_epoch() {
+  local ts="${1:-}"
+  if [ -z "$ts" ]; then
+    echo ""
+    return 0
+  fi
+  local epoch
+  epoch=$(date -d "$ts" +%s 2>/dev/null) || epoch=""
+  if [ -z "$epoch" ]; then
+    local norm="${ts%%.*}"
+    norm="${norm%+00:00}"
+    norm="${norm%Z}"
+    epoch=$(date -j -u -f "%Y-%m-%dT%H:%M:%S" "$norm" +%s 2>/dev/null) || epoch=""
+  fi
+  echo "$epoch"
+}
+
 # --- Stale process cleanup ---
 # Kill any interkasten MCP server processes with stale heartbeats.
 cleanup_stale_processes() {
@@ -55,7 +76,8 @@ cleanup_stale_processes() {
       if kill -0 "$pid" 2>/dev/null; then
         # Process alive — check heartbeat staleness
         if [ -n "$heartbeat" ]; then
-          heartbeat_epoch=$(date -d "$heartbeat" +%s 2>/dev/null || echo "0")
+          heartbeat_epoch=$(_start_mcp_iso_to_epoch "$heartbeat")
+          [ -z "$heartbeat_epoch" ] && heartbeat_epoch="0"
           age=$(( now - heartbeat_epoch ))
           if [ "$age" -gt "$STALE_THRESHOLD" ]; then
             echo "interkasten: killing stale process $pid (heartbeat ${age}s old)" >&2
