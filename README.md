@@ -1,6 +1,6 @@
 # interkasten
 
-Bidirectional Notion sync for Claude Code.
+Bidirectional Notion sync for Claude Code, Codex, and Kimi Code.
 
 ## What this does
 
