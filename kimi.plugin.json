@@ -1,6 +1,6 @@
 {
   "name": "interkasten",
-  "version": "0.4.25",
+  "version": "0.4.26",
   "description": "Living bridge between your projects folder and Notion — bidirectional sync with adaptive AI documentation and pagent workflow automation",
   "license": "MIT",
   "keywords": [
@@ -29,17 +29,17 @@
   "hooks": [
     {
       "event": "SessionStart",
-      "command": "bash \"${KIMI_PLUGIN_ROOT}/hooks/setup.sh\"",
+      "command": "bash",
       "timeout": 30
     },
     {
       "event": "SessionStart",
-      "command": "bash \"${KIMI_PLUGIN_ROOT}/hooks/session-status.sh\"",
+      "command": "bash",
       "timeout": 5
     },
     {
       "event": "Stop",
-      "command": "bash \"${KIMI_PLUGIN_ROOT}/hooks/session-end-warn.sh\"",
+      "command": "bash",
       "timeout": 5
     }
   ]
