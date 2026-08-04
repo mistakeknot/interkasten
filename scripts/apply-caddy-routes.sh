@@ -1,15 +1,51 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Apply Caddy routes via admin API.
-# Idempotent — safe to run multiple times.
+# Apply Caddy routes via the admin API.
+#
+# IDEMPOTENT BY CONVERGENCE, NOT BY SKIPPING.
+#
+# This script used to decide with `echo "$existing" | grep -q "$host"` over the
+# whole live route JSON. That produced three defects, all proven on zklw on
+# 2026-08-03 rather than argued:
+#
+#   1. a route edited live was never corrected -- the host was present, so it
+#      skipped
+#   2. a host removed from this file kept serving forever -- nothing deleted it,
+#      and after a restart nothing would recreate it either
+#   3. a host that is a SUBSTRING of a live host was never created AT ALL: the
+#      grep matched `alpha.scratch.invalid` when asked for `scratch.invalid`,
+#      skipped, and exited 0
+#
+# Defect 3 is why the fix is not a better existence test. A unit that exits 0
+# having applied nothing is invisible to every check on this estate that reads
+# exit codes, and the message it printed ("already exists") actively misleads.
+#
+# The declarations below are now the whole truth about what this owner serves.
+# caddy-converge.py makes the live table match them and then READS IT BACK, so a
+# zero exit means these routes are serving -- not merely that a request returned
+# 200. Deleting a block here removes that route from the server on the next run.
+#
+# The `interkasten-` @id prefix is the ownership bound: convergence may create,
+# correct and delete routes under it, and touches nothing else -- not the
+# Caddyfile's routes, not the other generator's, not one added by hand.
+#
 # Called by caddy-routes.service on boot.
 
-CADDY_ADMIN="http://localhost:2019"
+CADDY_ADMIN="${RIG_CADDY_ADMIN:-http://localhost:2019}"
+CONVERGE="${CADDY_CONVERGE:-$HOME/.local/bin/caddy-converge.py}"
 MAX_RETRIES=30
 RETRY_DELAY=2
 
-# Wait for Caddy admin API to be available
+# A missing converger is a hard failure, not a skipped step. The entire point of
+# this rewrite is that the unit must never exit 0 having applied nothing.
+if [[ ! -x "$CONVERGE" ]]; then
+  echo "caddy-converge.py not executable at $CONVERGE; routes NOT applied" >&2
+  exit 1
+fi
+
+# Wait for the Caddy admin API to come up. If it never does, convergence exits 3
+# (NO VERDICT) rather than claiming success against a server it never reached.
 for i in $(seq 1 $MAX_RETRIES); do
   if curl -sf "$CADDY_ADMIN/config/" > /dev/null 2>&1; then
     break
@@ -18,23 +54,9 @@ for i in $(seq 1 $MAX_RETRIES); do
   sleep $RETRY_DELAY
 done
 
-existing=$(curl -s "$CADDY_ADMIN/config/apps/http/servers/srv0/routes" 2>/dev/null || echo "[]")
-
-add_route_if_missing() {
-  local host="$1"
-  local json="$2"
-  if echo "$existing" | grep -q "$host"; then
-    echo "Route $host already exists"
-  else
-    curl -sf -X POST "$CADDY_ADMIN/config/apps/http/servers/srv0/routes" \
-      -H "Content-Type: application/json" \
-      -d "$json"
-    echo "Route $host added"
-  fi
-}
-
 # --- webhook.meadowsyn.com → localhost:8787 ---
-add_route_if_missing "webhook.meadowsyn.com" '{
+ROUTE_WEBHOOK='{
+  "@id": "interkasten-webhook-meadowsyn-com",
   "handle": [{
     "handler": "subroute",
     "routes": [{
@@ -49,7 +71,8 @@ add_route_if_missing "webhook.meadowsyn.com" '{
 }'
 
 # --- stream.meadowsyn.com → localhost:8401 (SSE factory-stream) ---
-add_route_if_missing "stream.meadowsyn.com" '{
+ROUTE_STREAM='{
+  "@id": "interkasten-stream-meadowsyn-com",
   "match": [{"host": ["stream.meadowsyn.com"]}],
   "handle": [
     {
@@ -68,3 +91,5 @@ add_route_if_missing "stream.meadowsyn.com" '{
   ],
   "terminal": true
 }'
+
+printf '[%s,%s]' "$ROUTE_WEBHOOK" "$ROUTE_STREAM" | "$CONVERGE" --owner interkasten
