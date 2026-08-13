@@ -1,4 +1,5 @@
 ---
+name: interkasten-layout
 description: "Interactive Project Discovery & Layout"
 ---
 
