@@ -1,4 +1,5 @@
 ---
+name: interkasten-webhook-setup
 description: "Webhook Setup — Configure Notion webhook sync"
 ---
 
