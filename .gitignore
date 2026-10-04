@@ -14,3 +14,7 @@ dist/
 
 .beads/
 __pycache__/
+
+# Agent working state
+.claude/flux-drive.yaml
+.remote-source
