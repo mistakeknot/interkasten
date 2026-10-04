@@ -6,7 +6,7 @@ set -euo pipefail
 # IDEMPOTENT BY CONVERGENCE, NOT BY SKIPPING.
 #
 # This script used to decide with `echo "$existing" | grep -q "$host"` over the
-# whole live route JSON. That produced three defects, all proven on zklw on
+# whole live route JSON. That produced three defects, all proven on a live host on
 # 2026-08-03 rather than argued:
 #
 #   1. a route edited live was never corrected -- the host was present, so it
