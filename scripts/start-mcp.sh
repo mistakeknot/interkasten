@@ -42,7 +42,7 @@ fi
 # Parse an ISO8601 UTC timestamp (e.g. heartbeat, from JS `.toISOString()`:
 # YYYY-MM-DDTHH:MM:SS.sssZ) to epoch seconds, portably. GNU `date -d` first;
 # BSD `date -j -u -f` fallback (fractional seconds and Z/+00:00 suffixes
-# normalized). Echoes empty on failure (Sylveste-a3a).
+# normalized). Echoes empty on failure.
 _start_mcp_iso_to_epoch() {
   local ts="${1:-}"
   if [ -z "$ts" ]; then

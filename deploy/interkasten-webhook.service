@@ -1,3 +1,4 @@
+# Template: set User, the install path and the EnvironmentFile for your host.
 [Unit]
 Description=Interkasten Notion Webhook Daemon
 Documentation=https://github.com/mistakeknot/interkasten
@@ -6,10 +7,10 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=mk
-WorkingDirectory=/home/mk/projects/Sylveste/interverse/interkasten
-EnvironmentFile=/home/mk/.interkasten/.env
-ExecStart=/home/mk/projects/Sylveste/interverse/interkasten/scripts/start-webhook.sh
+User=interkasten
+WorkingDirectory=/opt/interkasten
+EnvironmentFile=/home/interkasten/.interkasten/.env
+ExecStart=/opt/interkasten/scripts/start-webhook.sh
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
