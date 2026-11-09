@@ -19,6 +19,12 @@ def test_agent_count():
     claude_agents = Path(__file__).resolve().parent.parent.parent / ".claude" / "agents"
     if claude_agents.is_dir():
         agent_files.extend(sorted(claude_agents.glob("*.md")))
-    assert len(agent_files) == 6, (
-        f"Expected 6 agents, found {len(agent_files)}: {[f.name for f in agent_files]}"
+    expected = {
+        "architecture.md", "database.md", "design-patterns.md", "mcp-tools.md",
+        "skills-hooks.md", "sync-engine.md", "testing-config.md",
+    }
+    found = {f.name for f in agent_files}
+    assert found == expected, (
+        f"Agent files changed. missing: {sorted(expected - found)}, "
+        f"unexpected: {sorted(found - expected)}"
     )

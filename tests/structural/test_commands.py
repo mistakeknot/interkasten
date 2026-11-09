@@ -13,12 +13,12 @@ COMMAND_FILES = sorted(COMMANDS_DIR.glob("*.md")) if COMMANDS_DIR.is_dir() else 
 
 def test_command_count(commands_dir):
     """Total command count matches expected value."""
-    if not commands_dir.is_dir():
-        assert 2 == 0
-        return
-    files = sorted(commands_dir.glob("*.md"))
-    assert len(files) == 2, (
-        f"Expected 2 commands, found {len(files)}: {[f.name for f in files]}"
+    expected = {"doctor.md", "onboard.md", "webhook-setup.md"}
+    assert commands_dir.is_dir(), "commands/ directory is missing"
+    found = {f.name for f in commands_dir.glob("*.md")}
+    assert found == expected, (
+        f"Command files changed. missing: {sorted(expected - found)}, "
+        f"unexpected: {sorted(found - expected)}"
     )
 
 
