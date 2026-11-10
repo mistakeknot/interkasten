@@ -3,7 +3,8 @@
 from pathlib import Path
 
 
-AGENTS_DIR = Path(__file__).resolve().parent.parent.parent / "agents"
+ROOT = Path(__file__).resolve().parent.parent.parent
+AGENTS_DIR = ROOT / "agents"
 
 
 def test_agent_count():
@@ -16,14 +17,18 @@ def test_agent_count():
             elif subdir.suffix == ".md" and subdir.name != "README.md":
                 agent_files.append(subdir)
     # Also check .claude/agents/ for Claude subagents
-    claude_agents = Path(__file__).resolve().parent.parent.parent / ".claude" / "agents"
+    claude_agents = ROOT / ".claude" / "agents"
     if claude_agents.is_dir():
         agent_files.extend(sorted(claude_agents.glob("*.md")))
+    # Compare repository-relative paths so a same-named file in another
+    # scanned directory is still seen as an addition.
     expected = {
-        "architecture.md", "database.md", "design-patterns.md", "mcp-tools.md",
-        "skills-hooks.md", "sync-engine.md", "testing-config.md",
+        f"agents/{name}" for name in (
+            "architecture.md", "database.md", "design-patterns.md", "mcp-tools.md",
+            "skills-hooks.md", "sync-engine.md", "testing-config.md",
+        )
     }
-    found = {f.name for f in agent_files}
+    found = {f.relative_to(ROOT).as_posix() for f in agent_files}
     assert found == expected, (
         f"Agent files changed. missing: {sorted(expected - found)}, "
         f"unexpected: {sorted(found - expected)}"
