@@ -16,15 +16,15 @@ SKILL_DIRS = sorted(
 
 def test_skill_count(skills_dir):
     """Total skill count matches expected value."""
-    if not skills_dir.is_dir():
-        assert 3 == 0
-        return
-    dirs = sorted(
-        d for d in skills_dir.iterdir()
+    expected = {"doctor", "layout", "onboard", "webhook-setup"}
+    assert skills_dir.is_dir(), "skills/ directory is missing"
+    found = {
+        d.name for d in skills_dir.iterdir()
         if d.is_dir() and (d / "SKILL.md").exists()
-    )
-    assert len(dirs) == 3, (
-        f"Expected 3 skills, found {len(dirs)}: {[d.name for d in dirs]}"
+    }
+    assert found == expected, (
+        f"Skills changed. missing: {sorted(expected - found)}, "
+        f"unexpected: {sorted(found - expected)}"
     )
 
 
